@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-15 (c): v2.0.0, S2 (check-out, locks, the workflow's steps, versions, English)
+
+- The owner's request and W1–W4 are in docs/tech-plan.md (S2). Migration 2: `items` (each file's status, owner, stage,
+  its workflow revision and production's), `releases.manifest`, `deployments.action/items`. Production is no longer
+  "the last release": it is each file's `prod_revision_id`; preview is production with the files at 预览站; the CMS's
+  已签入 is production with every workflow file (`revisionsAt` + `OVERLAYS` in store.ts).
+- New homes: `files.ts` (states, take, put back, mustHold on every save), `releases.ts` (releases, environments,
+  deployments, logs; moved out of workflow.ts so the steps can call the deployer), `workflow.ts` (check-in, terminate,
+  toPreview, backToCheckIn, toProduction, rollbackProduction, rebuildPreview, discard, versions, restoreVersion),
+  `words.ts` (Msg keys, CmsError, say), `present.ts`, `labels.ts`; UI `components/files.tsx` (badges, FileBar, versions
+  drawer, Editable fieldset), `file-table.tsx`, pages /mine and /workflow (/checkin and /deploy redirect).
+- A step that builds moves its files in deploy()'s onSuccess; a failed build leaves them. A running deployment's files
+  are busy (refused). A release refuses a page whose block it lacks; a page takes its new blocks along at each step.
+- English: next-intl without routing (cms_lang cookie, src/i18n/request.ts, typed keys from zh.json); server messages
+  are keys with values (in both languages: catalog labels via label_en from the website's cms/types.json); deployment
+  log lines of the CMS's own are stored as keys (§{…}) and read in the reader's language. The website's CMS bar and
+  Edit labels follow the page's locale (website v2.0.1).
+- Found: v1's src/app/deploy was never committed (.gitignore `deploy/`) → anchored (mistake 7); stopping npm start left
+  the servers holding 8790/8791 (mistake 8). fast-xml-parser 5.12.1 for an advisory.
+- Checks: 27 unit tests (every message rendered in both languages, English plurals); every route in zh and en signed in (200, no error, the right language); a browser walk of the
+  繁體 fix: take, edit, save, check in, push to preview, back to check-in, push again, on real builds (preview shows
+  擴展). The local database was set aside (data/cms-v1-2026-11-15) and seeded again; production untouched (release 1).
+
 ## 2026-11-15 (b): v1.0.1 and v1.1.0
 
 - v1.0.1: OpenCC writes 扩展 as the IT term 擴充套件; mapped to 擴展 (src/lib/hant.ts). The 首页 lead was fixed in

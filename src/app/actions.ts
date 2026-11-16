@@ -1,21 +1,20 @@
 "use server";
 /**
  * Everything the CMS's pages change, as server actions (Next checks each one comes from this site's own pages). Each
- * asks for its role first (server.ts), answers in words (`Result`), and lets the page reload what it shows.
+ * asks for its role first (server.ts), answers in the reader's words (`Result`), and lets the page reload what it shows.
  */
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { closeSession, SESSION_COOKIE } from "@/lib/auth";
+import { startCmsSiteBuild } from "@/lib/deploy";
+import { type Item, putBack, take } from "@/lib/files";
 import { toHant } from "@/lib/hant";
-import { deploy, startCmsSiteBuild } from "@/lib/deploy";
 import { attempt, database, editor, publisher } from "@/lib/server";
 import {
-  CmsError,
   createComponent,
   createPage,
   deleteComponent,
   deletePage,
-  discard,
   getPage,
   type Kind,
   type PageRow,
@@ -25,7 +24,18 @@ import {
   saveText,
 } from "@/lib/store";
 import { importDoc, parseUpload } from "@/lib/transfer";
-import { checkIn, createRelease, environments, type Item } from "@/lib/workflow";
+import {
+  backToCheckIn,
+  checkIn,
+  discard,
+  rebuildPreview,
+  restoreVersion,
+  rollbackProduction,
+  terminate,
+  toPreview,
+  toProduction,
+} from "@/lib/workflow";
+import { CmsError, LANG_COOKIE, type Lang, say } from "@/lib/words";
 import type { L10n } from "@/generated/model";
 
 const done = () => revalidatePath("/", "layout");
@@ -64,13 +74,15 @@ export async function addBlockAction(
     const user = await editor();
     const pg = await database();
     const page = await getPage(pg, pageId);
-    if (!page) throw new CmsError("没有这个页面");
-    const id = o.existing ?? (await createComponent(pg, o.type ?? "", o.name ?? "", user.login));
-    const blocks = [...page.blocks];
-    blocks.splice(o.at ?? blocks.length, 0, id);
-    await savePage(pg, pageId, { blocks }, user.login);
-    done();
-    return id;
+    if (!page) throw new CmsError("errors.noPage");
+    return pg.transaction(async (tx) => {
+      const id = o.existing ?? (await createComponent(tx, o.type ?? "", o.name ?? "", user.login));
+      const blocks = [...page.blocks];
+      blocks.splice(o.at ?? blocks.length, 0, id);
+      await savePage(tx, pageId, { blocks }, user.login);
+      done();
+      return id;
+    });
   });
 }
 
@@ -115,13 +127,46 @@ export async function saveTextAction(key: string, value: L10n) {
   });
 }
 
-export async function discardAction(kind: Kind, id: string) {
+// ---- files: take, put back, discard, versions ---------------------------------------------------------------
+
+/** 拿取, or with [over] 接手 (taking a file someone else has). */
+export async function takeAction(items: Item[], over = false) {
   return attempt(async () => {
     const user = await editor();
-    await discard(await database(), kind, id, user.login);
+    await take(await database(), items, user.login, over);
     done();
   });
 }
+
+/** 放回: nobody's again, the changes kept. */
+export async function putBackAction(items: Item[]) {
+  return attempt(async () => {
+    const user = await editor();
+    await putBack(await database(), items, user.login);
+    done();
+  });
+}
+
+/** 丢弃: back to production's version. */
+export async function discardAction(items: Item[]) {
+  return attempt(async () => {
+    const user = await editor();
+    await discard(await database(), items, user.login);
+    done();
+  });
+}
+
+/** A version of a file as its draft again; the blocks it names that are gone, in words. */
+export async function restoreVersionAction(kind: Kind, id: string, revision: number) {
+  return attempt(async (lang) => {
+    const user = await editor();
+    const missing = await restoreVersion(await database(), kind, id, revision, user.login);
+    done();
+    return missing.map((b) => say({ key: "check.noBlock", values: { id: b } }, lang));
+  });
+}
+
+// ---- the workflow's steps ---------------------------------------------------------------------------------
 
 export async function checkInAction(items: Item[], message: string) {
   return attempt(async () => {
@@ -132,36 +177,62 @@ export async function checkInAction(items: Item[], message: string) {
   });
 }
 
-/** 推到预览站: a release of everything checked in, built into preview.cameyware.com in the background. */
-export async function pushPreviewAction(note: string) {
+/** 终止: back to whoever checked them in. */
+export async function terminateAction(items: Item[]) {
   return attempt(async () => {
-    const user = await editor();
-    const release = await createRelease(await database(), user.login, note);
-    const { id } = await deploy("preview", release, user.login);
+    await editor();
+    await terminate(await database(), items);
     done();
-    return { release, deployment: id };
   });
 }
 
-/** 推到正式站: the release preview shows ([release], or it by default) to www.cameyware.com. */
-export async function pushProductionAction(release?: number) {
+/** 推到预览站: built into preview.cameyware.com in the background. */
+export async function pushPreviewAction(items: Item[], note: string) {
+  return attempt(async () => {
+    const user = await editor();
+    const r = await toPreview(await database(), items, user.login, note);
+    done();
+    return { release: r.release, deployment: r.deployment, items: r.items.length };
+  });
+}
+
+/** 退回签入: preview built again without them. */
+export async function backAction(items: Item[]) {
+  return attempt(async () => {
+    const user = await editor();
+    const r = await backToCheckIn(await database(), items, user.login);
+    done();
+    return { release: r.release, deployment: r.deployment };
+  });
+}
+
+/** 推到正式站 (管理员 and up): committed and pushed to www.cameyware.com. */
+export async function pushProductionAction(items: Item[], note: string) {
   return attempt(async () => {
     const user = await publisher();
-    const r = release ?? (await environments(await database())).preview.release;
-    if (!r) throw new CmsError("预览站还没有版本");
-    const { id } = await deploy("production", r, user.login);
+    const r = await toProduction(await database(), items, user.login, note);
     done();
-    return { release: r, deployment: id };
+    return { release: r.release, deployment: r.deployment, items: r.items.length };
   });
 }
 
-/** An earlier release to preview again (a rollback there). */
-export async function redeployPreviewAction(release: number) {
+/** Production back to a release it showed before (管理员 and up). */
+export async function rollbackProductionAction(release: number) {
+  return attempt(async () => {
+    const user = await publisher();
+    const r = await rollbackProduction(await database(), release, user.login);
+    done();
+    return { release: r.release, deployment: r.deployment };
+  });
+}
+
+/** Preview built again as it should be. */
+export async function rebuildPreviewAction() {
   return attempt(async () => {
     const user = await editor();
-    const { id } = await deploy("preview", release, user.login);
+    const r = await rebuildPreview(await database(), user.login);
     done();
-    return { release, deployment: id };
+    return { release: r.release, deployment: r.deployment };
   });
 }
 
@@ -169,17 +240,22 @@ export async function redeployPreviewAction(release: number) {
 export async function rebuildCmsSiteAction() {
   return attempt(async () => {
     await editor();
-    if (!startCmsSiteBuild()) throw new CmsError("CMS 预览站正在重建，几分钟后刷新看看");
+    if (!startCmsSiteBuild()) throw new CmsError("errors.cmsSiteBuilding");
   });
 }
 
-/** An upload: what it would change ([apply] false), or the change made. */
+// ---- upload, words, language, sign-out ----------------------------------------------------------------------
+
+/** An upload: what it would change ([apply] false), or the change made, in the reader's words. */
 export async function importAction(text: string, apply: boolean) {
-  return attempt(async () => {
+  return attempt(async (lang) => {
     const user = await editor();
     const plan = await importDoc(await database(), parseUpload(text), user.login, apply);
     if (apply) done();
-    return plan;
+    return {
+      items: plan.items.map((i) => ({ ...i, label: i.label[lang] })),
+      notes: plan.notes.map((n) => say(n, lang)),
+    };
   });
 }
 
@@ -189,6 +265,16 @@ export async function toTraditionalAction(text: string) {
     await editor();
     return toHant(text);
   });
+}
+
+/** The CMS in [lang] in this browser, for a year. */
+export async function setLanguageAction(lang: Lang) {
+  (await cookies()).set(LANG_COOKIE, lang === "en" ? "en" : "zh", {
+    path: "/",
+    maxAge: 365 * 24 * 3600,
+    sameSite: "lax",
+  });
+  done();
 }
 
 export async function signOutAction() {

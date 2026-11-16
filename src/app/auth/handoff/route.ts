@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { openSession, redeem, SESSION_COOKIE } from "@/lib/auth";
 import { editBase } from "@/lib/hosts";
 import { database } from "@/lib/server";
-import { CmsError } from "@/lib/store";
+import { CmsError, LANG_COOKIE, langOf, say } from "@/lib/words";
 
 /**
  * /auth/handoff?code=…[&back=…]: from 网站内容管理 on the website's 我的账号. The code redeemed, the role read; signed in,
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code") ?? "";
   const back = req.nextUrl.searchParams.get("back") ?? "/";
   try {
-    if (!code) throw new CmsError("缺少登录码");
+    if (!code) throw new CmsError("errors.noCode");
     const who = await redeem(code);
     const id = await openSession(await database(), { ...who });
     // Only this CMS's own pages: never somewhere else by a link someone made.
@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
     });
     return res;
   } catch (e) {
-    const reason = e instanceof CmsError ? e.message : "登录失败，请稍后再试";
+    const lang = langOf(req.cookies.get(LANG_COOKIE)?.value);
+    const reason = say(e instanceof CmsError ? e.msg : { key: "errors.signInFailed" }, lang);
     return NextResponse.redirect(new URL(`/login?reason=${encodeURIComponent(reason)}`, base));
   }
 }

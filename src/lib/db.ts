@@ -11,10 +11,10 @@ export type Db = PGlite | Transaction;
 
 /**
  * Pages, components, globals and texts are the working copy (what the editors save: the drafts); revisions are what was
- * checked in, one row per item per check-in; a release is the whole site as checked in at a moment, frozen; an
- * environment (preview, production) names the release it shows.
+ * checked in, one row per item per check-in (each file's versions); items, each file's state; a release is the whole
+ * site at a moment, frozen; an environment (preview, production) names the release it shows.
  */
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `create table pages (
      id text primary key,
      path text not null unique,
@@ -98,6 +98,37 @@ const MIGRATIONS = [
      created_at timestamptz not null default now(),
      seen_at timestamptz not null default now()
    );`,
+  // S2 (the owner, 2026-11-15: 「file 必须要先checkout之后才能update」): every page, block, global and text is a file with a
+  // state. available: nobody's; checked_out: [owner]'s alone to change; in_workflow: checked in by [owner], locked, at
+  // [stage] with [revision_id]. [prod_revision_id] is the version production shows (none: never published). A release
+  // keeps the version of every file it was made of (its manifest), so production can go back to it; a deployment, what
+  // it does to which files.
+  `create table items (
+     kind text not null check (kind in ('page', 'component', 'global', 'text')),
+     id text not null,
+     status text not null default 'available' check (status in ('available', 'checked_out', 'in_workflow')),
+     owner text,
+     since timestamptz not null default now(),
+     stage text check (stage in ('checked_in', 'preview')),
+     revision_id bigint references revisions (id),
+     checkin_id bigint references checkins (id),
+     prod_revision_id bigint references revisions (id),
+     primary key (kind, id)
+   );
+   -- What was checked in before is what production was made of: each file's last version, nobody's.
+   insert into items (kind, id, status, prod_revision_id)
+     select distinct on (kind, entity_id) kind, entity_id, 'available', id
+       from revisions order by kind, entity_id, id desc;
+   -- A draft never checked in: its last editor's.
+   insert into items (kind, id, status, owner)
+     select 'page', id, 'checked_out', updated_by from pages
+     union all select 'component', id, 'checked_out', updated_by from components
+     union all select 'global', key, 'checked_out', updated_by from globals
+     union all select 'text', key, 'checked_out', updated_by from texts
+   on conflict (kind, id) do nothing;
+   alter table releases add column manifest jsonb;
+   alter table deployments add column action text not null default 'release';
+   alter table deployments add column items jsonb not null default '[]';`,
 ];
 
 async function migrate(db: PGlite) {

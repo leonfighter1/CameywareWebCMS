@@ -5,9 +5,10 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
-# The CMS's database and what it writes on this computer: never in the repository
-data/
-deploy/
+# The CMS's database and what it writes on this computer: never in the repository. At the root only: src/app has a
+# deploy route of its own (v1.x lost src/app/deploy to an unanchored "deploy/").
+/data/
+/deploy/
 .env
 .env.*
 

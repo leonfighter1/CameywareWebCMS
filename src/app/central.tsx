@@ -18,9 +18,12 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { IconDownload, IconEye, IconFile, IconFolder, IconPlus, IconRefresh } from "@tabler/icons-react";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { StateBadges } from "@/components/files";
 import { report } from "@/components/result";
+import type { FileView } from "@/lib/present";
 import { createPageAction, rebuildCmsSiteAction } from "./actions";
 
 type PageItem = {
@@ -30,17 +33,12 @@ type PageItem = {
   status: "active" | "inactive";
   deleted: boolean;
   blocks: number;
-  change?: "new" | "changed" | "deleted";
+  file?: FileView;
   updated: string;
 };
 
-export const CHANGE_LABELS = {
-  new: "新建，未签入",
-  changed: "已修改，未签入",
-  deleted: "待删除，未签入",
-} as const;
-
 function NewPage() {
+  const t = useTranslations("central");
   const [opened, { open, close }] = useDisclosure();
   const [path, setPath] = useState("/");
   const [title, setTitle] = useState("");
@@ -50,29 +48,29 @@ function NewPage() {
     setBusy(true);
     const r = await createPageAction(path, { zh: title });
     setBusy(false);
-    if (report(r, "页面已新建（停用状态）")) router.push(`/pages/${r.value}`);
+    if (report(r, t("created"))) router.push(`/pages/${r.value}`);
   };
   return (
     <>
       <Button leftSection={<IconPlus size={16} />} onClick={open}>
-        新建页面
+        {t("newPage")}
       </Button>
-      <Modal opened={opened} onClose={close} title="新建页面">
+      <Modal opened={opened} onClose={close} title={t("newPage")}>
         <Stack>
           <TextInput
-            label="地址"
-            description="以 / 开头和结尾，小写字母、数字和连字符，例如 /about-us/ 或 /works/new-app/"
+            label={t("path")}
+            description={t("pathHelp")}
             value={path}
             onChange={(e) => setPath(e.currentTarget.value)}
             data-autofocus
           />
-          <TextInput label="标题（简体）" value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
+          <TextInput label={t("titleZh")} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
           <Text size="xs" c="dimmed">
-            新页面先是停用的：加好区块、检查好，再启用并签入。也可以在“下载与上传”里上传一个页面文件来新建。
+            {t("newPageHelp")}
           </Text>
           <Group justify="flex-end">
             <Button onClick={create} loading={busy}>
-              新建
+              {t("create")}
             </Button>
           </Group>
         </Stack>
@@ -82,24 +80,36 @@ function NewPage() {
 }
 
 export function Central({
+  me,
   pages,
   types,
-  pending,
+  mine,
+  workflow,
   preview,
   releases,
   building,
 }: {
+  me: string;
   pages: PageItem[];
   types: { type: string; label: string; count: number; unused: number }[];
-  pending: number;
+  mine: number;
+  workflow: number;
   preview: string;
   releases: { preview?: number; production?: number };
   building: boolean;
 }) {
+  const t = useTranslations("central");
+  const site = useLocale() === "en" ? "en" : "zh";
   const [show, setShow] = useState("all");
   const router = useRouter();
   const shown = pages.filter((p) =>
-    show === "all" ? true : show === "deleted" ? p.deleted : !p.deleted && p.status === show,
+    show === "all"
+      ? true
+      : show === "deleted"
+        ? p.deleted
+        : show === "mine"
+          ? p.file?.status === "checked_out" && p.file.owner === me
+          : !p.deleted && p.status === show,
   );
   const paths = new Set(pages.map((p) => p.path));
   const depth = (path: string) => (path === "/" ? 0 : path.split("/").length - 2);
@@ -107,49 +117,57 @@ export function Central({
     pages.some((p) => p.path !== path && p.path.startsWith(path) && path !== "/");
   return (
     <Stack gap="lg">
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         <Card withBorder>
           <Text size="sm" c="dimmed">
-            待签入的修改
+            {t("myFiles")}
           </Text>
           <Group justify="space-between" mt={4}>
             <Text fz={28} fw={700}>
-              {pending}
+              {mine}
             </Text>
-            <Button component={Link} href="/checkin/" variant="light" size="xs">
-              去签入
+            <Button component={Link} href="/mine/" variant="light" size="xs">
+              {t("open")}
             </Button>
           </Group>
         </Card>
         <Card withBorder>
           <Text size="sm" c="dimmed">
-            预览站 / 正式站的版本
+            {t("inWorkflow")}
           </Text>
           <Group justify="space-between" mt={4}>
             <Text fz={28} fw={700}>
-              #{releases.preview ?? "–"} / #{releases.production ?? "–"}
+              {workflow}
             </Text>
-            <Button component={Link} href="/deploy/" variant="light" size="xs">
-              发布
+            <Button component={Link} href="/workflow/" variant="light" size="xs">
+              {t("open")}
             </Button>
           </Group>
         </Card>
         <Card withBorder>
           <Text size="sm" c="dimmed">
-            CMS 预览站（网站代码改动后要重建；改内容不用）
+            {t("releases")}
+          </Text>
+          <Text fz={28} fw={700} mt={4}>
+            #{releases.preview ?? "–"} / #{releases.production ?? "–"}
+          </Text>
+        </Card>
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            {t("cmsSite")}
           </Text>
           <Group justify="space-between" mt={4}>
-            <Badge color={building ? "yellow" : "green"}>{building ? "正在重建…" : "可用"}</Badge>
+            <Badge color={building ? "yellow" : "green"}>{building ? t("rebuilding") : t("ready")}</Badge>
             <Button
               variant="light"
               size="xs"
               leftSection={<IconRefresh size={14} />}
               disabled={building}
               onClick={async () => {
-                if (report(await rebuildCmsSiteAction(), "开始重建 CMS 预览站，要几分钟")) router.refresh();
+                if (report(await rebuildCmsSiteAction(), t("rebuildStarted"))) router.refresh();
               }}
             >
-              重建 CMS 预览站
+              {t("rebuild")}
             </Button>
           </Group>
         </Card>
@@ -158,7 +176,7 @@ export function Central({
       <Card withBorder>
         <Group justify="space-between" mb="md">
           <Title order={2} fz={20}>
-            页面
+            {t("pages")}
           </Title>
           <Group>
             <SegmentedControl
@@ -166,24 +184,26 @@ export function Central({
               value={show}
               onChange={setShow}
               data={[
-                { value: "all", label: "全部" },
-                { value: "active", label: "启用" },
-                { value: "inactive", label: "停用" },
-                { value: "deleted", label: "待删除" },
+                { value: "all", label: t("all") },
+                { value: "active", label: t("active") },
+                { value: "inactive", label: t("inactive") },
+                { value: "mine", label: t("mineOnly") },
+                { value: "deleted", label: t("deleted") },
               ]}
             />
             <NewPage />
           </Group>
         </Group>
-        <Table.ScrollContainer minWidth={760}>
+        <Table.ScrollContainer minWidth={860}>
           <Table highlightOnHover verticalSpacing="xs">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>地址</Table.Th>
-                <Table.Th>标题</Table.Th>
-                <Table.Th>状态</Table.Th>
-                <Table.Th>区块</Table.Th>
-                <Table.Th>最后修改</Table.Th>
+                <Table.Th>{t("path")}</Table.Th>
+                <Table.Th>{t("title")}</Table.Th>
+                <Table.Th>{t("status")}</Table.Th>
+                <Table.Th>{t("file")}</Table.Th>
+                <Table.Th>{t("blocks")}</Table.Th>
+                <Table.Th>{t("updated")}</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -204,7 +224,7 @@ export function Central({
                       </Anchor>
                       {!paths.has(p.path.replace(/[^/]+\/$/, "")) && p.path !== "/" && (
                         <Text size="xs" c="dimmed">
-                          （上级没有页面）
+                          {t("noParent")}
                         </Text>
                       )}
                     </Group>
@@ -213,16 +233,12 @@ export function Central({
                     <Text size="sm">{p.title}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap={4}>
-                      <Badge color={p.status === "active" ? "green" : "gray"} variant="light">
-                        {p.status === "active" ? "启用" : "停用"}
-                      </Badge>
-                      {p.change && (
-                        <Badge color="yellow" variant="light">
-                          {CHANGE_LABELS[p.change]}
-                        </Badge>
-                      )}
-                    </Group>
+                    <Badge color={p.status === "active" ? "green" : "gray"} variant="light">
+                      {p.status === "active" ? t("active") : t("inactive")}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <StateBadges file={p.file} me={me} size="xs" />
                   </Table.Td>
                   <Table.Td>{p.blocks}</Table.Td>
                   <Table.Td>
@@ -234,18 +250,18 @@ export function Central({
                     <Group gap={4} justify="flex-end" wrap="nowrap">
                       <Button
                         component="a"
-                        href={`${preview}/zh${p.path}?view=draft`}
+                        href={`${preview}/${site}${p.path}?view=draft`}
                         target="_blank"
                         size="compact-xs"
                         variant="subtle"
                         leftSection={<IconEye size={14} />}
                       >
-                        预览
+                        {t("preview")}
                       </Button>
                       <Menu>
                         <Menu.Target>
                           <Button size="compact-xs" variant="subtle" leftSection={<IconDownload size={14} />}>
-                            下载
+                            {t("download")}
                           </Button>
                         </Menu.Target>
                         <Menu.Dropdown>
@@ -268,14 +284,15 @@ export function Central({
 
       <Card withBorder>
         <Title order={2} fz={20} mb="md">
-          区块，按类型
+          {t("blocksByType")}
         </Title>
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-          {types.map((t) => (
-            <Card key={t.type} withBorder padding="sm" component={Link} href={`/components/?type=${t.type}`}>
-              <Text fw={600}>{t.label}</Text>
+          {types.map((x) => (
+            <Card key={x.type} withBorder padding="sm" component={Link} href={`/components/?type=${x.type}`}>
+              <Text fw={600}>{x.label}</Text>
               <Text size="sm" c="dimmed">
-                {t.type} · {t.count} 个{t.unused ? `（${t.unused} 个没用在页面上）` : ""}
+                {x.type} · {t("count", { n: x.count })}
+                {x.unused ? ` ${t("unused", { n: x.unused })}` : ""}
               </Text>
             </Card>
           ))}

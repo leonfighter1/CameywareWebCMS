@@ -17,16 +17,19 @@ import { cpSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { db } from "./db";
+import type { Item } from "./files";
 import { deployDir, siteRepo } from "./paths";
-import { buildContent } from "./store";
 import {
+  type Action,
   appendLog,
   beginDeployment,
   type Env,
   finishDeployment,
+  logLine,
   markDeployed,
   releaseContent,
-} from "./workflow";
+} from "./releases";
+import { buildContent } from "./store";
 
 const win = process.platform === "win32";
 
@@ -95,7 +98,7 @@ async function buildSite(
     win,
   );
   if (code !== 0 || !existsSync(join(siteRepo(), distDir, "index.html")))
-    throw new Error(`网站构建失败（${code}）`);
+    throw new Error(`website build failed (${code})`);
 }
 
 type Pg = Awaited<ReturnType<typeof db>>;
@@ -117,7 +120,7 @@ async function toPreview(pg: Pg, release: number, by: string, log: (s: string) =
   if (existsSync(out)) await renameRetrying(out, old);
   await renameRetrying(join(siteRepo(), ".cms-build", "preview"), out);
   rmSync(old, { recursive: true, force: true });
-  log("\n预览站已换成这一版（preview.cameyware.com）。\n");
+  log(logLine("deploy.previewDone"));
 }
 
 /**
@@ -135,13 +138,13 @@ async function toProduction(pg: Pg, release: number, by: string, log: (s: string
     writeFileSync(join(dir, "content", "site.json"), JSON.stringify(content, null, 2) + "\n");
     const changed = await git(["status", "--porcelain", "--", "content/site.json"], log, dir);
     if (!changed) {
-      log("\n正式站已经是这一版的内容，不需要提交。\n");
+      log(logLine("deploy.productionSame"));
       return;
     }
     await git(["add", "--", "content/site.json"], log, dir);
     await git(["commit", "-m", `Content: release ${release} (${by})`, "--", "content/site.json"], log, dir);
     await git(["push", "origin", "HEAD:main"], log, dir);
-    log("\n已推送到 GitHub；Cloudflare Pages 会在几分钟内构建并上线 www.cameyware.com。\n");
+    log(logLine("deploy.productionDone"));
   } finally {
     await git(["worktree", "remove", "--force", dir], log).catch(() =>
       rmSync(dir, { recursive: true, force: true }),
@@ -149,18 +152,18 @@ async function toProduction(pg: Pg, release: number, by: string, log: (s: string
   }
 }
 
-/** The CMS's own preview: the website in CMS mode, with what is checked in now as its starting content. */
+/** The CMS's own preview: the website in CMS mode, with the workflow's files (已签入) as its starting content. */
 export async function buildCmsSite(log: (s: string) => void = (s) => process.stdout.write(s)) {
   const pg = await db();
   const file = deployDir("cms", "content.json");
   mkdirSync(deployDir("cms"), { recursive: true });
-  writeFileSync(file, JSON.stringify(await buildContent(pg, "checked_in"), null, 2) + "\n");
+  writeFileSync(file, JSON.stringify(await buildContent(pg, "workflow"), null, 2) + "\n");
   await buildSite(file, ".cms-build/cms", { NEXT_PUBLIC_CMS: "on" }, log);
   const target = deployDir("cms", "site");
   rmSync(target, { recursive: true, force: true });
   cpSync(join(siteRepo(), ".cms-build", "cms"), target, { recursive: true });
   rmSync(join(siteRepo(), ".cms-build", "cms"), { recursive: true, force: true });
-  log(`\nCMS 预览站已构建：${target}\n`);
+  log(`\nCMS preview built: ${target}\n`);
 }
 
 const building = globalThis as unknown as { cmsSiteBuild?: Promise<void> };
@@ -177,17 +180,24 @@ export function startCmsSiteBuild(): boolean {
 export const cmsSiteBuilding = () => !!building.cmsSiteBuild;
 
 /**
- * Sends [release] to [env], in the background: the deployment's id at once, its log and its end in the database.
- * [runner] is for tests (no build, no git).
+ * Sends [release] to [env], in the background: the deployment's id at once, its log and its end in the database. It
+ * does [action] to [items]: [onSuccess] moves them on once the site shows the release (a failed one leaves them where
+ * they were). [runner] is for tests (no build, no git).
  */
 export async function deploy(
   env: Env,
   release: number,
   by: string,
-  runner?: (log: (s: string) => void) => Promise<void>,
+  o: {
+    action: Action;
+    items?: Item[];
+    onSuccess?: (pg: Pg) => Promise<void>;
+    runner?: (log: (s: string) => void) => Promise<void>;
+  },
 ) {
+  const { runner } = o;
   const pg = await db();
-  const id = await beginDeployment(pg, env, release, by);
+  const id = await beginDeployment(pg, env, release, by, o.action, o.items);
   let pendingLog = "";
   let flushing: Promise<void> = Promise.resolve();
   const log = (s: string) => {
@@ -203,21 +213,24 @@ export async function deploy(
     : env === "preview"
       ? toPreview(pg, release, by, log)
       : toProduction(pg, release, by, log);
-  const done = work.then(
-    async () => {
-      await flushing;
-      await markDeployed(pg, env, release, by);
-      await finishDeployment(pg, id, true, pendingLog);
-    },
-    async (e: unknown) => {
-      await flushing;
-      await finishDeployment(
-        pg,
-        id,
-        false,
-        `${pendingLog}\n失败：${e instanceof Error ? e.message : String(e)}\n`,
-      );
-    },
-  );
+  const failed = async (e: unknown) => {
+    await flushing;
+    await finishDeployment(
+      pg,
+      id,
+      false,
+      `${pendingLog}${logLine("deploy.failed", { reason: e instanceof Error ? e.message : String(e) })}`,
+    );
+  };
+  const done = work.then(async () => {
+    try {
+      await o.onSuccess?.(pg);
+    } catch (e) {
+      return failed(e);
+    }
+    await flushing;
+    await markDeployed(pg, env, release, by);
+    await finishDeployment(pg, id, true, pendingLog);
+  }, failed);
   return { id, done };
 }

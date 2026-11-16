@@ -53,3 +53,22 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 - **Cause:** the package had no `"type": "module"`.
 - **Fix:** `"type": "module"` in package.json (the PostCSS config is .cjs).
 - **Rule:** a package whose scripts use top-level await is `"type": "module"`.
+
+## 7. A bare folder name in .gitignore hid a source folder
+
+- **Symptom:** `src/app/deploy` (v1's 发布 page) was never committed: git status never listed it, so the repository on
+  GitHub had no 发布 page (found in S2, replacing it).
+- **Cause:** `deploy/` in .gitignore matches a folder of that name at any depth: the route folder went with the deploy
+  output.
+- **Fix:** anchored to the root: `/deploy/`, `/data/`.
+- **Rule:** ignore an output folder from the root (`/name/`), never by a bare `name/`; after adding a route or a folder,
+  check that git status lists its files before committing.
+
+## 8. Stopping npm start left the CMS's servers running
+
+- **Symptom:** after the background `npm start` was stopped, ports 8790 and 8791 were still held (`next start` and
+  `preview-server.ts`).
+- **Cause:** on Windows, ending the shell that ran npm start doesn't end the node processes `scripts/start.ts` spawned.
+- **Fix:** found by port (`Get-NetTCPConnection -LocalPort 8790,8791`) and stopped by process id.
+- **Rule:** after stopping the CMS, check that 8790 and 8791 are free before building or touching `data/`; stop what
+  still holds them by the port's owner.

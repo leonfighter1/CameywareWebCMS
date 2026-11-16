@@ -1,30 +1,42 @@
 "use client";
-import { Badge, Button, Card, Group, Menu, SegmentedControl, Stack, Text, Title } from "@mantine/core";
+import { Button, Card, Group, Menu, SegmentedControl, Stack, Text, Title } from "@mantine/core";
 import { IconArrowBack, IconDownload } from "@tabler/icons-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { type Context, FieldsEditor } from "@/components/fields";
+import { Editable, FileBar, isMine } from "@/components/files";
 import { report } from "@/components/result";
-import type { GlobalDef } from "@/lib/catalog";
-import { discardAction, saveGlobalAction } from "../../actions";
+import type { Field } from "@/lib/catalog";
+import type { FileView, VersionView } from "@/lib/present";
+import { saveGlobalAction } from "../../actions";
 
 export function GlobalEditor({
+  me,
+  file,
+  versions,
   name,
-  def,
+  label,
+  description,
+  fields,
   all,
   data,
-  changed,
   ctx,
   back,
 }: {
+  me: string;
+  file: FileView;
+  versions: VersionView[];
   name: string;
-  def: GlobalDef;
+  label: string;
+  description: string;
+  fields: Field[];
   all: { key: string; label: string }[];
   data: Record<string, unknown>;
-  changed: boolean;
   ctx: Context;
   back?: string;
 }) {
+  const t = useTranslations("global");
   const router = useRouter();
   const [value, setValue] = useState(data);
   const [busy, setBusy] = useState(false);
@@ -38,14 +50,11 @@ export function GlobalEditor({
       />
       <Group justify="space-between">
         <div>
-          <Group gap="xs">
-            <Title order={1} fz={22}>
-              {def.label}
-            </Title>
-            {changed && <Badge color="yellow">已修改，未签入</Badge>}
-          </Group>
+          <Title order={1} fz={22}>
+            {label}
+          </Title>
           <Text size="sm" c="dimmed">
-            {def.description}
+            {description}
           </Text>
         </div>
         <Group gap="xs">
@@ -57,13 +66,13 @@ export function GlobalEditor({
               size="xs"
               leftSection={<IconArrowBack size={14} />}
             >
-              返回预览
+              {t("back")}
             </Button>
           )}
           <Menu>
             <Menu.Target>
               <Button variant="default" size="xs" leftSection={<IconDownload size={14} />}>
-                下载
+                {t("download")}
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
@@ -77,32 +86,25 @@ export function GlobalEditor({
           </Menu>
         </Group>
       </Group>
+      <FileBar file={file} me={me} versions={versions} />
       <Card withBorder maw={1100}>
-        <Stack>
-          <FieldsEditor fields={def.fields} value={value} onChange={setValue} ctx={ctx} />
-          <Group justify="flex-end">
-            {changed && (
+        <Editable open={isMine(file, me)}>
+          <Stack>
+            <FieldsEditor fields={fields} value={value} onChange={setValue} ctx={ctx} />
+            <Group justify="flex-end">
               <Button
-                variant="default"
+                loading={busy}
                 onClick={async () => {
-                  if (report(await discardAction("global", name), "已撤销草稿")) window.location.reload();
+                  setBusy(true);
+                  if (report(await saveGlobalAction(name, value), t("saved"))) router.refresh();
+                  setBusy(false);
                 }}
               >
-                撤销草稿
+                {t("save")}
               </Button>
-            )}
-            <Button
-              loading={busy}
-              onClick={async () => {
-                setBusy(true);
-                if (report(await saveGlobalAction(name, value), "已保存（草稿）")) router.refresh();
-                setBusy(false);
-              }}
-            >
-              保存
-            </Button>
-          </Group>
-        </Stack>
+            </Group>
+          </Stack>
+        </Editable>
       </Card>
     </Stack>
   );

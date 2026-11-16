@@ -9,7 +9,7 @@
 import { randomBytes } from "node:crypto";
 import type { Db } from "./db";
 import { apiBase } from "./paths";
-import { CmsError } from "./store";
+import { CmsError, msg } from "./words";
 
 export type Role = "editor" | "manager" | "admin" | "superadmin";
 export type User = { id: string; userId: string; login: string; role: Role };
@@ -20,12 +20,9 @@ const IDLE_MS = 12 * 3600_000;
 export const canEdit = (role: Role) => role === "editor" || role === "admin" || role === "superadmin";
 export const canPublish = (role: Role) => role === "admin" || role === "superadmin";
 
-export const ROLE_NAMES: Record<Role, string> = {
-  editor: "网站编辑",
-  manager: "经理",
-  admin: "管理员",
-  superadmin: "超级管理员",
-};
+/** A role's name (messages roles.*: 网站编辑, 管理员 …), a staff role this CMS doesn't know as it is. */
+export const roleName = (role: string) =>
+  ["editor", "manager", "admin", "superadmin"].includes(role) ? msg(`roles.${role}`) : role;
 
 /** The code from the website, redeemed: the staff member and their role, or a refusal in words. */
 export async function redeem(code: string, fetcher: typeof fetch = fetch) {
@@ -35,16 +32,16 @@ export async function redeem(code: string, fetcher: typeof fetch = fetch) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ code }),
   });
-  if (!handed.ok) throw new CmsError("这个登录链接已经用过或过期了，请从官网的“我的账号”重新进入");
+  if (!handed.ok) throw new CmsError("errors.linkUsed");
   const tokens = (await handed.json()) as { access_token: string; refresh_token: string };
   try {
     const me = await fetcher(`${api}/v1/admin/me`, {
       headers: { authorization: `Bearer ${tokens.access_token}` },
     });
-    if (!me.ok) throw new CmsError("这个账号没有后台权限");
+    if (!me.ok) throw new CmsError("errors.notStaff");
     const staff = (await me.json()) as { id: string; login: string; role: Role; can: string[] };
     if (!staff.can.includes("content"))
-      throw new CmsError(`你的角色（${ROLE_NAMES[staff.role] ?? staff.role}）不能修改网站内容`);
+      throw new CmsError("errors.roleCannotEdit", { role: roleName(staff.role) });
     return { userId: staff.id, login: staff.login, role: staff.role };
   } finally {
     // Only the role was wanted: the console session ends here, so it never counts against the account's devices.

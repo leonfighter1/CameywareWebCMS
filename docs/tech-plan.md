@@ -75,6 +75,38 @@ Then: 「我已经新建了一个新的repo https://github.com/leonfighter1/Came
 | WP9  | The workflow: save (draft) → 签入 (chosen items, a message) → cms-preview → 推到预览站 (a release, built) → 推到正式站 (committed, pushed); history, rollback to any release                                          |
 | WP10 | Checks: unit tests of the model, the XML round trip, the workflow and the roles; the website's tests on the snapshot and in four languages; the harness on both                                                       |
 
+## S2 Check-out, locks, the workflow's steps, versions, the CMS in English (big: CMS v2.0.0)
+
+**The owner (2026-11-15), on the 发布 page (a screenshot with the space under 推到预览站 and 推到正式站 circled):**
+
+> 添加version tracker 同时还能rollback。 同时file 必须要先checkout之后才能update， 每个file有 没有被touch的情况，这样editor可以
+> 进行拿取操作，一旦拿取，file/component就进入checkout 状态，此时如果另一个人想要拿回去可以直接take over， 但是一旦当文件进入
+> 签入(added to workflow)状态，file就被lock住了。此时文件就无法被拿取。只有文件被checkout的情况下可以add into workflow. 还有图中，
+> 我们可以添加一个退回签入step, 在签入的step我们也可以添加terminate workflow的功能。 用户可以查看当下哪些文件在他们的名下，然后可以
+> 多个文件一同签入，当然也可以移除相关文件。文件还可以被discard, discard后的文件自动退回上一个 pushed to prod的版本。 preview 版本只
+> 留在cms preview 和preview中。
+
+Then: 「给CMS网站同时添加一个英文语言。」
+
+**Decisions (asked first):** W1 终止工作流 at the check-in step: back to the one who checked it in, checked out, the
+changes kept. W2 退回签入 at the preview step: back to the check-in step, still locked; preview is built again without
+it. W3 移除 in 我的文件: put back (not checked out), the changes kept; 丢弃 is another button (back to production's
+version). W4 versions: each file's own (rolling one back = that version as a draft, then the workflow), and the whole
+site's production too (straight back to a release pushed before, for emergencies).
+
+**The model:** every page, block, global and UI text is a file with a state: 未拿取 (anyone may take it), 拿取 (one
+person's; only they edit; another may take it over), 工作流 (checked in: locked, at 已签入 or 预览站). Production holds
+each file's version pushed last; preview shows production plus the files at 预览站; cms-preview shows production plus the
+workflow's files (已签入) or every draft (草稿).
+
+| WP   | What                                                                                                                                                     |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP11 | Files' states and owners (migration 2), every save checked against them; take, take over, put back, discard (to production's version)                    |
+| WP12 | The workflow's steps: check in (several files, a message), terminate, push to preview, back to check-in, push to production; selected files at each step |
+| WP13 | Versions: each file's history (its production version marked) and rollback to any; the whole site's production rolled back to a release                  |
+| WP14 | 我的文件 (mine, to check in, put back or discard together); the central page, editors and texts show each file's state                                   |
+| WP15 | The CMS in English and Chinese (next-intl, a switch); the catalog's labels in English; cms-preview's bar in the page's language                          |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -89,6 +121,32 @@ Then: 「我已经新建了一个新的repo https://github.com/leonfighter1/Came
 | WP8  | done                                         | v1.0.0                 |
 | WP9  | done                                         | v1.0.0                 |
 | WP10 | done                                         | v1.0.0, website v2.0.0 |
+| WP11 | done                                         | v2.0.0                 |
+| WP12 | done                                         | v2.0.0                 |
+| WP13 | done                                         | v2.0.0                 |
+| WP14 | done                                         | v2.0.0                 |
+| WP15 | done                                         | v2.0.0, website v2.0.1 |
+
+## 阶段总结 S2 (v2.0.0, 2026-11-15)
+
+1. **Delivered:** WP11 file states (migration 2, `files.ts`; every save checked; take, take over, put back; new files
+   their maker's; uploads take what nobody has and refuse the rest). WP12 the steps (`workflow.ts`): check-in of your
+   files, terminate (W1), push to preview, back to check-in (W2), push to production of the files picked alone, each
+   moving its files only once its build succeeded; a page's new blocks go along. WP13 versions: each file's check-ins
+   with production's and the workflow's marked and the releases it was published in; restore as a draft; production
+   back to a release it showed (its manifest), preview rebuilt after. WP14 我的文件, 工作流 (replacing 签入 and 发布),
+   the state on the central page, the blocks list, the texts table (batch take, check-in, put back) and each editor (a
+   bar with the steps; fields read-only unless yours). WP15 the CMS in English and Chinese (next-intl, a switch, server
+   messages and logs by key, the catalog's English); the website's CMS bar in the page's language (website v2.0.1).
+2. **Numbers:** 27 unit tests (16 before); every route opened in both languages; a browser walk on real preview builds.
+3. **Against the plan:** releases, environments and deployments moved to `releases.ts` so the steps can call the
+   deployer without a cycle; preview always rebuilds as production plus 预览站 (no more "deploy an old release to
+   preview"); production's rollback needs a release with a manifest, so the v1 releases can't be rolled back to (the
+   local database was seeded again anyway).
+4. **Mistakes:** 7 (an unanchored .gitignore folder hid src/app/deploy: anchor output folders), 8 (stopping npm start
+   left the servers on 8790/8791: check the ports).
+5. **Next:** the owner's 推到正式站 of the 繁體 fix (now through 工作流's 预览站 column); a French reader; picture upload
+   into the CMS (left for later).
 
 **Left for later:** pictures uploaded into the CMS (now an image is a path under the site or a full address); a live
 check that a freeform's script runs on the production build; legal documents in French (D5 decided 简体, 繁體 and

@@ -1,5 +1,5 @@
 {
-  "_readme": "The CMS's block types: each one's view is src/cms/views/<type>.tsx, its fields are what the CMS (C:\\CameywareWebCMS) shows in its editor and checks on save and upload. Field kinds: text, textarea, html (sanitised: no scripts), code (freeform's HTML, scripts allowed, shown in a sandboxed frame), link (a page path or a full address), image (a path under the site or a full address), select, boolean, icon, work (one of the works), list (of the fields under it). localized: one value per language. A new type: its view, its entry here, then npm run sync in the CMS.",
+  "_readme": "The CMS's block types: each one's view is src/cms/views/<type>.tsx, its fields are what the CMS (C:\\CameywareWebCMS) shows in its editor and checks on save and upload. Field kinds: text, textarea, html (sanitised: no scripts), code (freeform's HTML, scripts allowed, shown in a sandboxed frame), link (a page path or a full address), image (a path under the site or a full address), select, boolean, icon, work (one of the works), list (of the fields under it). localized: one value per language. label_en / description_en / hint_en: the CMS's English (its interface in English). A new type: its view, its entry here, then npm run sync in the CMS.",
   "rich_text_allow": {
     "_readme": "What an html field may hold (sanitize-html's options), in the CMS on save and upload, and in the site's build: headings, text, lists, links, a few marks; no scripts, no styles. Elements may carry data-when=\"server\" and data-testid, and these classes.",
     "allowedTags": [
@@ -33,7 +33,9 @@
       "name": "anchor",
       "label": "区块标识",
       "kind": "text",
-      "hint": "页面里的定位名（字母、数字和连字符），用作链接锚点和测试标识；可以不填"
+      "hint": "页面里的定位名（字母、数字和连字符），用作链接锚点和测试标识；可以不填",
+      "label_en": "Block anchor",
+      "hint_en": "A name for the block on its page (letters, digits and hyphens), for links and tests; optional"
     },
     {
       "name": "space_before",
@@ -41,12 +43,13 @@
       "kind": "select",
       "default": "auto",
       "options": [
-        { "value": "auto", "label": "按类型默认" },
-        { "value": "none", "label": "无" },
-        { "value": "small", "label": "小" },
-        { "value": "medium", "label": "中" },
-        { "value": "large", "label": "大" }
-      ]
+        { "value": "auto", "label": "按类型默认", "label_en": "Type's default" },
+        { "value": "none", "label": "无", "label_en": "None" },
+        { "value": "small", "label": "小", "label_en": "Small" },
+        { "value": "medium", "label": "中", "label_en": "Medium" },
+        { "value": "large", "label": "大", "label_en": "Large" }
+      ],
+      "label_en": "Space above"
     }
   ],
   "icons": [
@@ -74,26 +77,34 @@
       "full": true,
       "space": "none",
       "fields": [
-        { "name": "eyebrow", "label": "眉题", "kind": "text", "localized": true },
-        { "name": "title", "label": "标题", "kind": "text", "localized": true, "required": true },
-        { "name": "lead", "label": "导语", "kind": "textarea", "localized": true },
+        { "name": "eyebrow", "label": "眉题", "kind": "text", "localized": true, "label_en": "Eyebrow" },
+        {
+          "name": "title",
+          "label": "标题",
+          "kind": "text",
+          "localized": true,
+          "required": true,
+          "label_en": "Title"
+        },
+        { "name": "lead", "label": "导语", "kind": "textarea", "localized": true, "label_en": "Lead" },
         {
           "name": "buttons",
           "label": "按钮",
           "kind": "list",
           "max": 3,
           "fields": [
-            { "name": "label", "label": "文字", "kind": "text", "localized": true },
-            { "name": "href", "label": "链接", "kind": "link" },
+            { "name": "label", "label": "文字", "kind": "text", "localized": true, "label_en": "Text" },
+            { "name": "href", "label": "链接", "kind": "link", "label_en": "Link" },
             {
               "name": "style",
               "label": "样式",
               "kind": "select",
               "default": "filled",
               "options": [
-                { "value": "filled", "label": "主按钮" },
-                { "value": "default", "label": "次按钮" }
-              ]
+                { "value": "filled", "label": "主按钮", "label_en": "Primary" },
+                { "value": "default", "label": "次按钮", "label_en": "Secondary" }
+              ],
+              "label_en": "Style"
             },
             {
               "name": "action",
@@ -101,13 +112,21 @@
               "kind": "select",
               "default": "link",
               "options": [
-                { "value": "link", "label": "打开链接" },
-                { "value": "web_app", "label": "打开禄命秘解网页版（文字自动）" }
-              ]
+                { "value": "link", "label": "打开链接", "label_en": "Open the link" },
+                {
+                  "value": "web_app",
+                  "label": "打开禄命秘解网页版（文字自动）",
+                  "label_en": "Open 禄命秘解's web version (its own words)"
+                }
+              ],
+              "label_en": "Action"
             }
-          ]
+          ],
+          "label_en": "Buttons"
         }
-      ]
+      ],
+      "label_en": "Hero banner",
+      "description_en": "The large banner at the top of a page: eyebrow, title, lead and buttons, across the whole width."
     },
     "work_hero": {
       "label": "作品横幅",
@@ -115,78 +134,164 @@
       "full": true,
       "space": "none",
       "fields": [
-        { "name": "work", "label": "作品", "kind": "work", "required": true },
-        { "name": "show_web_app", "label": "显示网页版按钮", "kind": "boolean", "default": true },
-        { "name": "hint", "label": "按钮下的提示", "kind": "textarea", "localized": true }
-      ]
+        { "name": "work", "label": "作品", "kind": "work", "required": true, "label_en": "Works" },
+        {
+          "name": "show_web_app",
+          "label": "显示网页版按钮",
+          "kind": "boolean",
+          "default": true,
+          "label_en": "Show the web version's button"
+        },
+        {
+          "name": "hint",
+          "label": "按钮下的提示",
+          "kind": "textarea",
+          "localized": true,
+          "label_en": "Hint under the button"
+        }
+      ],
+      "label_en": "Work banner",
+      "description_en": "A work's banner: its icon, name, tagline, lead and status from the Works global, with the web version's button, a hint and its picture."
     },
     "page_title": {
       "label": "页面标题",
       "description": "页面的大标题和第一句话。",
       "space": "none",
       "fields": [
-        { "name": "title", "label": "标题", "kind": "text", "localized": true, "required": true },
-        { "name": "lead", "label": "导语", "kind": "textarea", "localized": true }
-      ]
+        {
+          "name": "title",
+          "label": "标题",
+          "kind": "text",
+          "localized": true,
+          "required": true,
+          "label_en": "Title"
+        },
+        { "name": "lead", "label": "导语", "kind": "textarea", "localized": true, "label_en": "Lead" }
+      ],
+      "label_en": "Page title",
+      "description_en": "A page's title and first line."
     },
     "account_card": {
       "label": "账号卡片",
       "description": "给已有账号的人：标题、说明和进入按钮（没连服务器时显示“即将开放”），后面可以跟几个小链接。",
       "space": "none",
       "fields": [
-        { "name": "title", "label": "标题", "kind": "text", "localized": true, "required": true },
-        { "name": "body", "label": "说明", "kind": "textarea", "localized": true },
-        { "name": "action", "label": "按钮文字", "kind": "text", "localized": true },
-        { "name": "href", "label": "按钮链接", "kind": "link" },
+        {
+          "name": "title",
+          "label": "标题",
+          "kind": "text",
+          "localized": true,
+          "required": true,
+          "label_en": "Title"
+        },
+        { "name": "body", "label": "说明", "kind": "textarea", "localized": true, "label_en": "Body" },
+        {
+          "name": "action",
+          "label": "按钮文字",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Button text"
+        },
+        { "name": "href", "label": "按钮链接", "kind": "link", "label_en": "Button link" },
         {
           "name": "links",
           "label": "小链接",
           "kind": "list",
           "fields": [
-            { "name": "label", "label": "文字", "kind": "text", "localized": true },
-            { "name": "href", "label": "链接", "kind": "link" }
-          ]
+            { "name": "label", "label": "文字", "kind": "text", "localized": true, "label_en": "Text" },
+            { "name": "href", "label": "链接", "kind": "link", "label_en": "Link" }
+          ],
+          "label_en": "Small links"
         }
-      ]
+      ],
+      "label_en": "Account card",
+      "description_en": "For people with an account: a title, a body and a button in (\"coming soon\" without the server), then a few small links."
     },
     "featured_work": {
       "label": "精选作品",
       "description": "首页的作品大卡片：名称、标语、介绍和状态取自“作品”全局资料，右边是作品插图。",
       "space": "large",
       "fields": [
-        { "name": "label", "label": "卡片上方的小标题", "kind": "text", "localized": true },
-        { "name": "work", "label": "作品", "kind": "work", "required": true },
-        { "name": "button", "label": "按钮文字", "kind": "text", "localized": true },
-        { "name": "show_web_app", "label": "显示网页版按钮", "kind": "boolean", "default": true },
-        { "name": "note", "label": "卡片里的提示", "kind": "textarea", "localized": true }
-      ]
+        {
+          "name": "label",
+          "label": "卡片上方的小标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Label above the card"
+        },
+        { "name": "work", "label": "作品", "kind": "work", "required": true, "label_en": "Works" },
+        {
+          "name": "button",
+          "label": "按钮文字",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Button text"
+        },
+        {
+          "name": "show_web_app",
+          "label": "显示网页版按钮",
+          "kind": "boolean",
+          "default": true,
+          "label_en": "Show the web version's button"
+        },
+        {
+          "name": "note",
+          "label": "卡片里的提示",
+          "kind": "textarea",
+          "localized": true,
+          "label_en": "Note in the card"
+        }
+      ],
+      "label_en": "Featured work",
+      "description_en": "The large card of a work on the home page: name, tagline, lead and status from the Works global, its picture on the right."
     },
     "works_grid": {
       "label": "作品列表",
       "description": "所有作品的卡片（取自“作品”全局资料），最后一张是“下一款作品”。",
       "space": "none",
       "fields": [
-        { "name": "open", "label": "按钮文字", "kind": "text", "localized": true },
-        { "name": "soon_title", "label": "最后一张的标题", "kind": "text", "localized": true },
-        { "name": "soon_body", "label": "最后一张的说明", "kind": "textarea", "localized": true }
-      ]
+        { "name": "open", "label": "按钮文字", "kind": "text", "localized": true, "label_en": "Button text" },
+        {
+          "name": "soon_title",
+          "label": "最后一张的标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Last card's title"
+        },
+        {
+          "name": "soon_body",
+          "label": "最后一张的说明",
+          "kind": "textarea",
+          "localized": true,
+          "label_en": "Last card's body"
+        }
+      ],
+      "label_en": "Works list",
+      "description_en": "A card for every work (from the Works global), the last one \"our next work\"."
     },
     "card_grid": {
       "label": "卡片网格",
       "description": "一组卡片：带图标（特点）、带序号（步骤）或纯文字；可以有一个区块标题。",
       "space": "large",
       "fields": [
-        { "name": "title", "label": "区块标题", "kind": "text", "localized": true },
+        {
+          "name": "title",
+          "label": "区块标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Section title"
+        },
         {
           "name": "style",
           "label": "样式",
           "kind": "select",
           "default": "plain",
           "options": [
-            { "value": "plain", "label": "纯文字" },
-            { "value": "icon", "label": "带图标" },
-            { "value": "number", "label": "带序号" }
-          ]
+            { "value": "plain", "label": "纯文字", "label_en": "Text only" },
+            { "value": "icon", "label": "带图标", "label_en": "With icons" },
+            { "value": "number", "label": "带序号", "label_en": "Numbered" }
+          ],
+          "label_en": "Style"
         },
         {
           "name": "columns",
@@ -194,56 +299,92 @@
           "kind": "select",
           "default": "3",
           "options": [
-            { "value": "2", "label": "2" },
-            { "value": "3", "label": "3" },
-            { "value": "4", "label": "4" }
-          ]
+            { "value": "2", "label": "2", "label_en": "2" },
+            { "value": "3", "label": "3", "label_en": "3" },
+            { "value": "4", "label": "4", "label_en": "4" }
+          ],
+          "label_en": "Cards per row (wide screens)"
         },
         {
           "name": "cards",
           "label": "卡片",
           "kind": "list",
           "fields": [
-            { "name": "icon", "label": "图标", "kind": "icon" },
-            { "name": "title", "label": "标题", "kind": "text", "localized": true },
-            { "name": "body", "label": "说明", "kind": "textarea", "localized": true },
+            { "name": "icon", "label": "图标", "kind": "icon", "label_en": "Icon" },
+            { "name": "title", "label": "标题", "kind": "text", "localized": true, "label_en": "Title" },
+            { "name": "body", "label": "说明", "kind": "textarea", "localized": true, "label_en": "Body" },
             {
               "name": "extra",
               "label": "卡片里再加",
               "kind": "select",
               "default": "none",
               "options": [
-                { "value": "none", "label": "不加" },
-                { "value": "contact_details", "label": "公司联系方式" }
-              ]
+                { "value": "none", "label": "不加", "label_en": "Nothing" },
+                { "value": "contact_details", "label": "公司联系方式", "label_en": "Company contact details" }
+              ],
+              "label_en": "Also in the card"
             }
-          ]
+          ],
+          "label_en": "Cards"
         }
-      ]
+      ],
+      "label_en": "Card grid",
+      "description_en": "A set of cards: with icons (features), numbered (steps) or text only; it may have a section title."
     },
     "service_cards": {
       "label": "服务卡片",
       "description": "禄命秘解的各项服务，按东方、西方分组；哪些服务显示、按什么顺序由禄命秘解的管理后台决定，名称和说明是 App 的文字。",
       "space": "large",
-      "fields": [{ "name": "title", "label": "区块标题", "kind": "text", "localized": true }]
+      "fields": [
+        {
+          "name": "title",
+          "label": "区块标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Section title"
+        }
+      ],
+      "label_en": "Service cards",
+      "description_en": "禄命秘解's services, Eastern and Western; which are shown and their order come from 禄命秘解's admin console, their names and lines are the app's."
     },
     "accordion": {
       "label": "折叠问答 Accordion",
       "description": "一组问题，点开看答案。",
       "space": "large",
       "fields": [
-        { "name": "title", "label": "区块标题", "kind": "text", "localized": true },
-        { "name": "in_card", "label": "放在卡片里", "kind": "boolean", "default": false },
+        {
+          "name": "title",
+          "label": "区块标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Section title"
+        },
+        {
+          "name": "in_card",
+          "label": "放在卡片里",
+          "kind": "boolean",
+          "default": false,
+          "label_en": "In a card"
+        },
         {
           "name": "items",
           "label": "问答",
           "kind": "list",
           "fields": [
-            { "name": "question", "label": "问题", "kind": "text", "localized": true },
-            { "name": "answer", "label": "回答", "kind": "textarea", "localized": true }
-          ]
+            {
+              "name": "question",
+              "label": "问题",
+              "kind": "text",
+              "localized": true,
+              "label_en": "Question"
+            },
+            { "name": "answer", "label": "回答", "kind": "textarea", "localized": true, "label_en": "Answer" }
+          ],
+          "label_en": "Questions"
         }
-      ]
+      ],
+      "label_en": "Accordion",
+      "description_en": "A set of questions; each opens to its answer."
     },
     "disclaimer": {
       "label": "提示条",
@@ -256,49 +397,120 @@
           "kind": "select",
           "default": "strip",
           "options": [
-            { "value": "strip", "label": "提示条" },
-            { "value": "note", "label": "一行小字" }
-          ]
+            { "value": "strip", "label": "提示条", "label_en": "Notice" },
+            { "value": "note", "label": "一行小字", "label_en": "A small line" }
+          ],
+          "label_en": "Style"
         },
-        { "name": "text", "label": "文字", "kind": "textarea", "localized": true, "required": true }
-      ]
+        {
+          "name": "text",
+          "label": "文字",
+          "kind": "textarea",
+          "localized": true,
+          "required": true,
+          "label_en": "Text"
+        }
+      ],
+      "label_en": "Notice",
+      "description_en": "A notice that stands out (such as \"for entertainment\"), or a small line."
     },
     "contact_details": {
       "label": "公司联系方式",
       "description": "公司名称、注册地址、电话、邮箱、联系人和网站，取自“公司”全局资料。",
       "space": "medium",
-      "fields": [{ "name": "in_card", "label": "放在卡片里", "kind": "boolean", "default": true }]
+      "fields": [
+        {
+          "name": "in_card",
+          "label": "放在卡片里",
+          "kind": "boolean",
+          "default": true,
+          "label_en": "In a card"
+        }
+      ],
+      "label_en": "Company contact details",
+      "description_en": "The company's name, registered address, phone, email, contact person and website, from the Company global."
     },
     "rich_text": {
       "label": "图文",
       "description": "标题加一段格式化的文字（小标题、段落、列表、链接、粗体）。不能放脚本；需要脚本请用自由 HTML。带 data-when=\"server\" 的元素只在连着服务器的网站上显示。",
       "space": "medium",
       "fields": [
-        { "name": "title", "label": "标题", "kind": "text", "localized": true },
-        { "name": "html", "label": "内容", "kind": "html", "localized": true },
-        { "name": "in_card", "label": "放在卡片里", "kind": "boolean", "default": true }
-      ]
+        { "name": "title", "label": "标题", "kind": "text", "localized": true, "label_en": "Title" },
+        { "name": "html", "label": "内容", "kind": "html", "localized": true, "label_en": "Content" },
+        {
+          "name": "in_card",
+          "label": "放在卡片里",
+          "kind": "boolean",
+          "default": true,
+          "label_en": "In a card"
+        }
+      ],
+      "label_en": "Rich text",
+      "description_en": "A title and formatted text (headings, paragraphs, lists, links, bold). No scripts: use Freeform HTML for those. Elements with data-when=\"server\" show only where the site has its server."
     },
     "freeform": {
       "label": "自由 HTML Freeform",
       "description": "任意 HTML，脚本也可以。放在隔离框里运行：碰不到网站的登录信息和页面其他部分；高度随内容自动变化。",
       "space": "medium",
       "fields": [
-        { "name": "html", "label": "HTML", "kind": "code", "localized": true, "required": true },
-        { "name": "min_height", "label": "最小高度（像素）", "kind": "text", "hint": "可以不填" },
-        { "name": "site_styles", "label": "套用网站的颜色和字体", "kind": "boolean", "default": true }
-      ]
+        {
+          "name": "html",
+          "label": "HTML",
+          "kind": "code",
+          "localized": true,
+          "required": true,
+          "label_en": "HTML"
+        },
+        {
+          "name": "min_height",
+          "label": "最小高度（像素）",
+          "kind": "text",
+          "hint": "可以不填",
+          "label_en": "Minimum height (px)",
+          "hint_en": "Optional"
+        },
+        {
+          "name": "site_styles",
+          "label": "套用网站的颜色和字体",
+          "kind": "boolean",
+          "default": true,
+          "label_en": "Use the site's colours and fonts"
+        }
+      ],
+      "label_en": "Freeform HTML",
+      "description_en": "Any HTML, scripts too. Runs in a sandboxed frame: it can't reach the site's sign-in or the rest of the page; its height follows its content."
     },
     "image": {
       "label": "图片",
       "description": "一张图片，可以带说明。",
       "space": "medium",
       "fields": [
-        { "name": "src", "label": "图片地址", "kind": "image", "required": true },
-        { "name": "alt", "label": "替代文字（读屏软件读的）", "kind": "text", "localized": true },
-        { "name": "caption", "label": "说明", "kind": "text", "localized": true },
-        { "name": "max_width", "label": "最大宽度（像素）", "kind": "text", "hint": "可以不填" }
-      ]
+        {
+          "name": "src",
+          "label": "图片地址",
+          "kind": "image",
+          "required": true,
+          "label_en": "Image address"
+        },
+        {
+          "name": "alt",
+          "label": "替代文字（读屏软件读的）",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Alt text (read by screen readers)"
+        },
+        { "name": "caption", "label": "说明", "kind": "text", "localized": true, "label_en": "Body" },
+        {
+          "name": "max_width",
+          "label": "最大宽度（像素）",
+          "kind": "text",
+          "hint": "可以不填",
+          "label_en": "Maximum width (px)",
+          "hint_en": "Optional"
+        }
+      ],
+      "label_en": "Image",
+      "description_en": "One picture, with a caption if you like."
     },
     "button_row": {
       "label": "按钮组",
@@ -310,21 +522,25 @@
           "label": "按钮",
           "kind": "list",
           "fields": [
-            { "name": "label", "label": "文字", "kind": "text", "localized": true },
-            { "name": "href", "label": "链接", "kind": "link" },
+            { "name": "label", "label": "文字", "kind": "text", "localized": true, "label_en": "Text" },
+            { "name": "href", "label": "链接", "kind": "link", "label_en": "Link" },
             {
               "name": "style",
               "label": "样式",
               "kind": "select",
               "default": "filled",
               "options": [
-                { "value": "filled", "label": "主按钮" },
-                { "value": "default", "label": "次按钮" }
-              ]
+                { "value": "filled", "label": "主按钮", "label_en": "Primary" },
+                { "value": "default", "label": "次按钮", "label_en": "Secondary" }
+              ],
+              "label_en": "Style"
             }
-          ]
+          ],
+          "label_en": "Buttons"
         }
-      ]
+      ],
+      "label_en": "Button row",
+      "description_en": "A row of buttons."
     }
   },
   "globals": {
@@ -332,56 +548,106 @@
       "label": "公司",
       "description": "公司的正式资料，和注册文件一字不差：联系方式区块、页脚和网页的结构化资料都用它。",
       "fields": [
-        { "name": "name", "label": "公司名称", "kind": "text", "required": true },
+        { "name": "name", "label": "公司名称", "kind": "text", "required": true, "label_en": "Company name" },
         {
           "name": "address",
           "label": "注册地址（每行一项）",
           "kind": "list",
-          "fields": [{ "name": "line", "label": "这一行", "kind": "text" }]
+          "fields": [{ "name": "line", "label": "这一行", "kind": "text", "label_en": "Line" }],
+          "label_en": "Registered address (a line each)"
         },
-        { "name": "phone_shown", "label": "电话（显示）", "kind": "text" },
-        { "name": "phone_tel", "label": "电话（拨号用，如 +19054016667）", "kind": "text" },
-        { "name": "email", "label": "邮箱", "kind": "text" },
-        { "name": "contact", "label": "联系人", "kind": "text" },
-        { "name": "work_email", "label": "工作邮箱", "kind": "text" }
-      ]
+        { "name": "phone_shown", "label": "电话（显示）", "kind": "text", "label_en": "Phone (as shown)" },
+        {
+          "name": "phone_tel",
+          "label": "电话（拨号用，如 +19054016667）",
+          "kind": "text",
+          "label_en": "Phone (to dial, e.g. +19054016667)"
+        },
+        { "name": "email", "label": "邮箱", "kind": "text", "label_en": "Email" },
+        { "name": "contact", "label": "联系人", "kind": "text", "label_en": "Contact person" },
+        { "name": "work_email", "label": "工作邮箱", "kind": "text", "label_en": "Work email" }
+      ],
+      "label_en": "Company",
+      "description_en": "The company's details exactly as registered: the contact details block, the footer and the page's structured data use them."
     },
     "header": {
       "label": "页头",
       "description": "每页最上方：品牌名和导航链接。",
       "fields": [
-        { "name": "brand", "label": "品牌名", "kind": "text", "required": true },
+        { "name": "brand", "label": "品牌名", "kind": "text", "required": true, "label_en": "Brand name" },
         {
           "name": "nav",
           "label": "导航",
           "kind": "list",
           "fields": [
-            { "name": "label", "label": "文字", "kind": "text", "localized": true },
-            { "name": "href", "label": "链接", "kind": "link" }
-          ]
+            { "name": "label", "label": "文字", "kind": "text", "localized": true, "label_en": "Text" },
+            { "name": "href", "label": "链接", "kind": "link", "label_en": "Link" }
+          ],
+          "label_en": "Navigation"
         }
-      ]
+      ],
+      "label_en": "Header",
+      "description_en": "At the top of every page: the brand and the navigation."
     },
     "footer": {
       "label": "页脚",
       "description": "每页最下方：公司一栏、网站导航（同页头）、作品、联系我们，最下面是版权。",
       "fields": [
-        { "name": "tagline", "label": "公司一栏的标语", "kind": "text", "localized": true },
-        { "name": "about", "label": "公司一栏的介绍", "kind": "textarea", "localized": true },
-        { "name": "explore_title", "label": "导航一栏的标题", "kind": "text", "localized": true },
-        { "name": "works_title", "label": "作品一栏的标题", "kind": "text", "localized": true },
+        {
+          "name": "tagline",
+          "label": "公司一栏的标语",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Company column's tagline"
+        },
+        {
+          "name": "about",
+          "label": "公司一栏的介绍",
+          "kind": "textarea",
+          "localized": true,
+          "label_en": "Company column's text"
+        },
+        {
+          "name": "explore_title",
+          "label": "导航一栏的标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Navigation column's title"
+        },
+        {
+          "name": "works_title",
+          "label": "作品一栏的标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Works column's title"
+        },
         {
           "name": "works_links",
           "label": "作品一栏的链接",
           "kind": "list",
           "fields": [
-            { "name": "label", "label": "文字", "kind": "text", "localized": true },
-            { "name": "href", "label": "链接", "kind": "link" }
-          ]
+            { "name": "label", "label": "文字", "kind": "text", "localized": true, "label_en": "Text" },
+            { "name": "href", "label": "链接", "kind": "link", "label_en": "Link" }
+          ],
+          "label_en": "Works column's links"
         },
-        { "name": "contact_title", "label": "联系一栏的标题", "kind": "text", "localized": true },
-        { "name": "rights", "label": "版权的说法", "kind": "text", "localized": true }
-      ]
+        {
+          "name": "contact_title",
+          "label": "联系一栏的标题",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Contact column's title"
+        },
+        {
+          "name": "rights",
+          "label": "版权的说法",
+          "kind": "text",
+          "localized": true,
+          "label_en": "Copyright line"
+        }
+      ],
+      "label_en": "Footer",
+      "description_en": "At the bottom of every page: the company, the navigation (as the header's), the works and the contact details, then the copyright."
     },
     "works": {
       "label": "作品",
@@ -392,25 +658,56 @@
           "label": "作品",
           "kind": "list",
           "fields": [
-            { "name": "slug", "label": "代号（不能改）", "kind": "text", "required": true },
-            { "name": "name", "label": "名称", "kind": "text", "localized": true, "required": true },
-            { "name": "tagline", "label": "标语", "kind": "text", "localized": true },
-            { "name": "lead", "label": "介绍", "kind": "textarea", "localized": true },
-            { "name": "status", "label": "状态", "kind": "text", "localized": true },
-            { "name": "page", "label": "作品页", "kind": "link" },
-            { "name": "icon", "label": "图标", "kind": "image" },
-            { "name": "art", "label": "插图", "kind": "image" }
-          ]
+            {
+              "name": "slug",
+              "label": "代号（不能改）",
+              "kind": "text",
+              "required": true,
+              "label_en": "Slug (fixed)"
+            },
+            {
+              "name": "name",
+              "label": "名称",
+              "kind": "text",
+              "localized": true,
+              "required": true,
+              "label_en": "Name"
+            },
+            { "name": "tagline", "label": "标语", "kind": "text", "localized": true, "label_en": "Tagline" },
+            { "name": "lead", "label": "介绍", "kind": "textarea", "localized": true, "label_en": "Lead" },
+            { "name": "status", "label": "状态", "kind": "text", "localized": true, "label_en": "Status" },
+            { "name": "page", "label": "作品页", "kind": "link", "label_en": "Work page" },
+            { "name": "icon", "label": "图标", "kind": "image", "label_en": "Icon" },
+            { "name": "art", "label": "插图", "kind": "image", "label_en": "Picture" }
+          ],
+          "label_en": "Works"
         }
-      ]
+      ],
+      "label_en": "Works",
+      "description_en": "Each of the company's works: the work banner, the featured work, the works list and the account centre use these names and lines."
     },
     "meta": {
       "label": "网站的标题和描述",
       "description": "搜索引擎和浏览器标签页上显示的网站名称和描述；每个页面还可以有自己的。",
       "fields": [
-        { "name": "title", "label": "网站标题", "kind": "text", "localized": true, "required": true },
-        { "name": "description", "label": "网站描述", "kind": "textarea", "localized": true }
-      ]
+        {
+          "name": "title",
+          "label": "网站标题",
+          "kind": "text",
+          "localized": true,
+          "required": true,
+          "label_en": "Site title"
+        },
+        {
+          "name": "description",
+          "label": "网站描述",
+          "kind": "textarea",
+          "localized": true,
+          "label_en": "Site description"
+        }
+      ],
+      "label_en": "Site title and description",
+      "description_en": "The site's name and description in search engines and browser tabs; each page may have its own too."
     }
   }
 }

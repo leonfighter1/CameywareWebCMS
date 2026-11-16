@@ -1,11 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { currentUser, database } from "@/lib/server";
-import { CmsError, type Kind } from "@/lib/store";
+import type { Kind } from "@/lib/store";
 import { exportDoc, toXml } from "@/lib/transfer";
+import { CmsError, LANG_COOKIE, langOf, say } from "@/lib/words";
 
 /** A download: /api/export?kind=page|component|global|texts|site&id=…&format=json|xml, for a signed-in staff member. */
 export async function GET(req: NextRequest) {
-  if (!(await currentUser())) return new NextResponse("请先登录", { status: 401 });
+  const lang = langOf(req.cookies.get(LANG_COOKIE)?.value);
+  if (!(await currentUser()))
+    return new NextResponse(say({ key: "errors.signInFirst" }, lang), { status: 401 });
   const q = req.nextUrl.searchParams;
   const kind = (q.get("kind") ?? "site") as Kind | "texts" | "site";
   const id = q.get("id") ?? undefined;
@@ -21,6 +24,8 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
-    return new NextResponse(e instanceof CmsError ? e.message : "出错了", { status: 400 });
+    return new NextResponse(say(e instanceof CmsError ? e.msg : { key: "errors.failed" }, lang), {
+      status: 400,
+    });
   }
 }

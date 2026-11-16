@@ -1,13 +1,14 @@
 "use client";
 import {
-  Badge,
   Button,
   Card,
+  Checkbox,
   Group,
   Menu,
   Pagination,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   Textarea,
@@ -15,31 +16,47 @@ import {
   Title,
 } from "@mantine/core";
 import { IconDownload, IconSearch } from "@tabler/icons-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { LOCALE_LABELS } from "@/components/fields";
+import { checkInModal, confirm, isMine, StateBadges } from "@/components/files";
 import { report } from "@/components/result";
+import type { FileView } from "@/lib/present";
 import { type L10n, LOCALES } from "@/generated/model";
-import { saveTextAction } from "../actions";
+import { putBackAction, saveTextAction, takeAction } from "../actions";
 
-type Row = { key: string; value: L10n; changed: boolean };
+type Row = { key: string; value: L10n; file: FileView };
 
-function TextRow({ row }: { row: Row }) {
+function TextRow({
+  row,
+  me,
+  picked,
+  onPick,
+}: {
+  row: Row;
+  me: string;
+  picked: boolean;
+  onPick: (on: boolean) => void;
+}) {
+  const t = useTranslations("texts");
+  const tf = useTranslations("files");
   const router = useRouter();
   const [value, setValue] = useState(row.value);
   const [busy, setBusy] = useState(false);
+  const mine = isMine(row.file, me);
   const dirty = JSON.stringify(value) !== JSON.stringify(row.value);
+  const item = [{ kind: "text" as const, id: row.key }];
   return (
-    <Table.Tr>
+    <Table.Tr data-testid={`text-${row.key}`}>
+      <Table.Td style={{ verticalAlign: "top" }}>
+        <Checkbox aria-label={row.key} checked={picked} onChange={(e) => onPick(e.currentTarget.checked)} />
+      </Table.Td>
       <Table.Td style={{ verticalAlign: "top" }}>
         <Text size="xs" ff="monospace">
           {row.key}
         </Text>
-        {row.changed && (
-          <Badge size="xs" color="yellow" variant="light" mt={4}>
-            未签入
-          </Badge>
-        )}
+        <StateBadges file={row.file} me={me} size="xs" />
       </Table.Td>
       {LOCALES.map((l) => (
         <Table.Td key={l} style={{ verticalAlign: "top", minWidth: 180 }}>
@@ -51,22 +68,55 @@ function TextRow({ row }: { row: Row }) {
             minRows={1}
             maxRows={8}
             size="xs"
+            disabled={!mine}
           />
         </Table.Td>
       ))}
       <Table.Td style={{ verticalAlign: "top" }}>
-        <Button
-          size="compact-xs"
-          disabled={!dirty}
-          loading={busy}
-          onClick={async () => {
-            setBusy(true);
-            if (report(await saveTextAction(row.key, value), "已保存（草稿）")) router.refresh();
-            setBusy(false);
-          }}
-        >
-          保存
-        </Button>
+        {mine ? (
+          <Button
+            size="compact-xs"
+            disabled={!dirty}
+            loading={busy}
+            onClick={async () => {
+              setBusy(true);
+              if (report(await saveTextAction(row.key, value), t("saved"))) router.refresh();
+              setBusy(false);
+            }}
+          >
+            {t("save")}
+          </Button>
+        ) : row.file.status === "available" ? (
+          <Button
+            size="compact-xs"
+            variant="light"
+            loading={busy}
+            onClick={async () => {
+              setBusy(true);
+              if (report(await takeAction(item), tf("taken"))) router.refresh();
+              setBusy(false);
+            }}
+          >
+            {tf("take")}
+          </Button>
+        ) : row.file.status === "checked_out" ? (
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="orange"
+            onClick={() =>
+              confirm({
+                title: tf("takeOverTitle"),
+                body: tf("takeOverBody", { owner: row.file.owner ?? "" }),
+                label: tf("takeOver"),
+                cancel: tf("cancel"),
+                run: async () => report(await takeAction(item, true), tf("taken")) && router.refresh(),
+              })
+            }
+          >
+            {tf("takeOver")}
+          </Button>
+        ) : null}
       </Table.Td>
     </Table.Tr>
   );
@@ -74,36 +124,49 @@ function TextRow({ row }: { row: Row }) {
 
 const PER = 25;
 
-export function TextsEditor({ texts }: { texts: Row[] }) {
-  const [q, setQ] = useState("");
+export function TextsEditor({ me, texts, initial }: { me: string; texts: Row[]; initial?: string }) {
+  const t = useTranslations("texts");
+  const tf = useTranslations("files");
+  const router = useRouter();
+  const [q, setQ] = useState(initial ?? "");
   const [ns, setNs] = useState<string | null>(null);
+  const [onlyMine, setOnlyMine] = useState(false);
   const [page, setPage] = useState(1);
-  const spaces = useMemo(() => [...new Set(texts.map((t) => t.key.split(".")[0]!))], [texts]);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const spaces = useMemo(() => [...new Set(texts.map((x) => x.key.split(".")[0]!))], [texts]);
   const shown = texts.filter(
-    (t) =>
-      (!ns || t.key.startsWith(`${ns}.`)) &&
+    (x) =>
+      (!ns || x.key.startsWith(`${ns}.`)) &&
+      (!onlyMine || isMine(x.file, me)) &&
       (!q ||
-        t.key.toLowerCase().includes(q.toLowerCase()) ||
-        Object.values(t.value).some((v) => v?.toLowerCase().includes(q.toLowerCase()))),
+        x.key.toLowerCase().includes(q.toLowerCase()) ||
+        Object.values(x.value).some((v) => v?.toLowerCase().includes(q.toLowerCase()))),
   );
   const pages = Math.max(1, Math.ceil(shown.length / PER));
   const at = Math.min(page, pages);
+  const rows = shown.slice((at - 1) * PER, at * PER);
+  const items = [...picked].map((id) => ({ kind: "text" as const, id }));
+  const done = (ok: boolean) => {
+    if (!ok) return;
+    setPicked(new Set());
+    router.refresh();
+  };
+  const allPicked = rows.length > 0 && rows.every((r) => picked.has(r.key));
   return (
     <Stack gap="lg">
       <Group justify="space-between">
         <div>
           <Title order={1} fz={22}>
-            界面文字
+            {t("title")}
           </Title>
           <Text size="sm" c="dimmed">
-            网站上代码页面的文字：登录、账号中心、按钮和提示，共 {texts.length} 条。app.* 是 App
-            的词（服务名称等）。
+            {t("lead", { n: texts.length })}
           </Text>
         </div>
         <Menu>
           <Menu.Target>
             <Button variant="default" size="xs" leftSection={<IconDownload size={14} />}>
-              下载全部
+              {t("downloadAll")}
             </Button>
           </Menu.Target>
           <Menu.Dropdown>
@@ -119,7 +182,7 @@ export function TextsEditor({ texts }: { texts: Row[] }) {
       <Group>
         <TextInput
           leftSection={<IconSearch size={16} />}
-          placeholder="搜名字或文字"
+          placeholder={t("search")}
           value={q}
           onChange={(e) => {
             setQ(e.currentTarget.value);
@@ -127,7 +190,7 @@ export function TextsEditor({ texts }: { texts: Row[] }) {
           }}
         />
         <Select
-          placeholder="全部分类"
+          placeholder={t("allSpaces")}
           data={spaces}
           value={ns}
           onChange={(v) => {
@@ -136,16 +199,55 @@ export function TextsEditor({ texts }: { texts: Row[] }) {
           }}
           clearable
         />
+        <Switch
+          label={t("onlyMine")}
+          checked={onlyMine}
+          onChange={(e) => setOnlyMine(e.currentTarget.checked)}
+        />
         <Text size="sm" c="dimmed">
-          {shown.length} 条
+          {t("count", { n: shown.length })}
         </Text>
       </Group>
+      {!!picked.size && (
+        <Group gap="xs">
+          <Text size="sm">{t("picked", { n: picked.size })}</Text>
+          <Button size="xs" onClick={async () => done(report(await takeAction(items), tf("taken")))}>
+            {tf("take")}
+          </Button>
+          <Button size="xs" variant="light" onClick={() => checkInModal(items, tf, () => done(true))}>
+            {tf("checkIn")}
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            onClick={async () => done(report(await putBackAction(items), tf("putBackDone")))}
+          >
+            {tf("putBack")}
+          </Button>
+          <Button size="xs" variant="subtle" onClick={() => setPicked(new Set())}>
+            {t("clear")}
+          </Button>
+        </Group>
+      )}
       <Card withBorder p={0}>
-        <Table.ScrollContainer minWidth={980}>
+        <Table.ScrollContainer minWidth={1040}>
           <Table verticalSpacing="xs">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>名字</Table.Th>
+                <Table.Th w={36}>
+                  <Checkbox
+                    aria-label={t("pickPage")}
+                    checked={allPicked}
+                    onChange={(e) => {
+                      const next = new Set(picked);
+                      for (const r of rows)
+                        if (e.currentTarget.checked) next.add(r.key);
+                        else next.delete(r.key);
+                      setPicked(next);
+                    }}
+                  />
+                </Table.Th>
+                <Table.Th>{t("key")}</Table.Th>
                 {LOCALES.map((l) => (
                   <Table.Th key={l}>{LOCALE_LABELS[l]}</Table.Th>
                 ))}
@@ -153,8 +255,19 @@ export function TextsEditor({ texts }: { texts: Row[] }) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {shown.slice((at - 1) * PER, at * PER).map((row) => (
-                <TextRow key={row.key} row={row} />
+              {rows.map((row) => (
+                <TextRow
+                  key={`${row.key}:${JSON.stringify(row.value)}:${row.file.status}:${row.file.owner}`}
+                  row={row}
+                  me={me}
+                  picked={picked.has(row.key)}
+                  onPick={(on) => {
+                    const next = new Set(picked);
+                    if (on) next.add(row.key);
+                    else next.delete(row.key);
+                    setPicked(next);
+                  }}
+                />
               ))}
             </Table.Tbody>
           </Table>

@@ -8,9 +8,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Db } from "./db";
+import { fileStates } from "./files";
 import { siteRepo } from "./paths";
-import { canonical, listTexts } from "./store";
-import { checkIn, createRelease, markDeployed } from "./workflow";
+import { createRelease } from "./releases";
+import { canonical, listTexts, revisionsAt } from "./store";
+import { publishDirect, recordSeed } from "./workflow";
 import { GLOBAL_KEYS, type L10n, LOCALES, type SiteContent } from "@/generated/model";
 
 const json = (file: string) => JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
@@ -97,21 +99,27 @@ export async function seedIfEmpty(db: PGlite, repo = siteRepo()): Promise<boolea
     ...GLOBAL_KEYS.map((k) => ({ kind: "global" as const, id: k })),
     ...Object.keys(texts).map((k) => ({ kind: "text" as const, id: k })),
   ];
-  await checkIn(db, items, "初始内容：从官网的 content/site.json 和 messages 导入", SYSTEM);
-  const release = await createRelease(db, SYSTEM, "官网当时的内容");
-  await markDeployed(db, "preview", release, SYSTEM);
-  await markDeployed(db, "production", release, SYSTEM);
+  await publishDirect(db, items, "初始内容：从官网的 content/site.json 和 messages 导入", SYSTEM);
+  const release = await createRelease(db, SYSTEM, "官网当时的内容", () => false);
+  await recordSeed(db, release, SYSTEM);
   return true;
 }
 
-/** Texts the code added since (a new message key): into the CMS, checked in as the code has them. */
+/**
+ * Texts the code added since (a new message key): into the CMS as the code has them, production's version at once (the
+ * website already shows them from its code). A language the CMS lacks for a text nobody holds: the code's too.
+ */
 export async function addCodeTexts(db: PGlite, repo = siteRepo()): Promise<string[]> {
   const have = new Map((await listTexts(db)).map((t) => [t.key, t.value]));
+  const states = await fileStates(db);
+  const prod = await revisionsAt(db, () => false);
   const added: string[] = [];
   for (const [key, value] of Object.entries(codeTexts(repo))) {
     if (have.has(key)) {
-      // A language the CMS lacks for a text it has: the code's (a language added since).
       const now = have.get(key)!;
+      // Only a text nobody holds, as production has it: an editor's draft is never published this way.
+      if (states.get(`text:${key}`)?.status !== "available") continue;
+      if (canonical(prod.get(`text:${key}`)?.data) !== canonical(now)) continue;
       const merged = { ...value, ...now };
       if (canonical(merged) === canonical(now)) continue;
       await db.query(`update texts set value = $2, updated_at = now(), updated_by = $3 where key = $1`, [
@@ -128,7 +136,7 @@ export async function addCodeTexts(db: PGlite, repo = siteRepo()): Promise<strin
     added.push(key);
   }
   if (added.length)
-    await checkIn(
+    await publishDirect(
       db,
       added.map((id) => ({ kind: "text" as const, id })),
       "代码里新增的界面文字",

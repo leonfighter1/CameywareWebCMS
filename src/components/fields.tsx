@@ -19,11 +19,20 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconLanguage, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toTraditionalAction } from "@/app/actions";
 import type { Field } from "@/lib/catalog";
+import { hintIn, labelIn } from "@/lib/labels";
+import type { Lang } from "@/lib/words";
 import { type L10n, LOCALES } from "@/generated/model";
 import { report } from "./result";
+
+/** A field's label and hint in the CMS's language. */
+const useField = (field: Field) => {
+  const lang = useLocale() as Lang;
+  return { label: labelIn(field, lang), hint: hintIn(field, lang), lang };
+};
 
 export const LOCALE_LABELS: Record<(typeof LOCALES)[number], string> = {
   zh: "简体",
@@ -76,6 +85,7 @@ function SingleInput({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const t = useTranslations("fields");
   if (multiline(field.kind))
     return (
       <Textarea
@@ -95,11 +105,7 @@ function SingleInput({
       value={value}
       onChange={(e) => onChange(e.currentTarget.value)}
       placeholder={
-        field.kind === "link"
-          ? "/works/… 或 https://…"
-          : field.kind === "image"
-            ? "/art/… 或 https://…"
-            : undefined
+        field.kind === "link" ? t("linkHint") : field.kind === "image" ? t("imageHint") : undefined
       }
     />
   );
@@ -107,6 +113,8 @@ function SingleInput({
 
 /** A text in the four languages: 简体 first, its 繁體 a click away. */
 function L10nInput({ field, value, onChange }: { field: Field; value: L10n; onChange: (v: L10n) => void }) {
+  const t = useTranslations("fields");
+  const { label, hint } = useField(field);
   const [busy, setBusy] = useState(false);
   const fromSimplified = async () => {
     if (!value.zh) return;
@@ -119,10 +127,10 @@ function L10nInput({ field, value, onChange }: { field: Field; value: L10n; onCh
     <Stack gap={6}>
       <Group justify="space-between" gap="xs">
         <Text size="sm" fw={600}>
-          {field.label}
+          {label}
           {field.required && <span style={{ color: "var(--mantine-color-red-6)" }}> *</span>}
         </Text>
-        <Tooltip label="用 OpenCC 把简体转成台湾用法的繁體，再按 App 的用词改几处；保存前请读一遍">
+        <Tooltip label={t("hantHelp")}>
           <Button
             size="compact-xs"
             variant="subtle"
@@ -130,13 +138,13 @@ function L10nInput({ field, value, onChange }: { field: Field; value: L10n; onCh
             onClick={fromSimplified}
             loading={busy}
           >
-            用简体生成繁體
+            {t("hant")}
           </Button>
         </Tooltip>
       </Group>
-      {field.hint && (
+      {hint && (
         <Text size="xs" c="dimmed">
-          {field.hint}
+          {hint}
         </Text>
       )}
       {/* Two languages a row: a line of each stays readable beside the preview. */}
@@ -166,6 +174,8 @@ function ListInput({
   onChange: (v: Value[]) => void;
   ctx: Context;
 }) {
+  const t = useTranslations("fields");
+  const { label } = useField(field);
   const sub = field.fields ?? [];
   const move = (i: number, by: number) => {
     const next = [...value];
@@ -176,21 +186,26 @@ function ListInput({
   return (
     <Stack gap="xs">
       <Text size="sm" fw={600}>
-        {field.label}
+        {label}
       </Text>
       {value.map((item, i) => (
         <Card key={i} withBorder padding="sm">
           <Group justify="space-between" mb="xs">
             <Text size="xs" c="dimmed">
-              第 {i + 1} 项
+              {t("item", { n: i + 1 })}
             </Text>
             <Group gap={4}>
-              <ActionIcon variant="subtle" aria-label="上移" disabled={i === 0} onClick={() => move(i, -1)}>
+              <ActionIcon
+                variant="subtle"
+                aria-label={t("up")}
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+              >
                 <IconArrowUp size={16} />
               </ActionIcon>
               <ActionIcon
                 variant="subtle"
-                aria-label="下移"
+                aria-label={t("down")}
                 disabled={i === value.length - 1}
                 onClick={() => move(i, 1)}
               >
@@ -199,7 +214,7 @@ function ListInput({
               <ActionIcon
                 variant="subtle"
                 color="red"
-                aria-label="删除这一项"
+                aria-label={t("removeItem")}
                 onClick={() => onChange(value.filter((_, n) => n !== i))}
               >
                 <IconTrash size={16} />
@@ -222,7 +237,7 @@ function ListInput({
           disabled={!!field.max && value.length >= field.max}
           onClick={() => onChange([...value, {}])}
         >
-          添加一项
+          {t("addItem")}
         </Button>
       </Group>
     </Stack>
@@ -240,6 +255,7 @@ export function FieldInput({
   onChange: (v: unknown) => void;
   ctx: Context;
 }) {
+  const { label, hint, lang } = useField(field);
   if (field.kind === "list")
     return (
       <ListInput
@@ -252,7 +268,7 @@ export function FieldInput({
   if (field.kind === "boolean")
     return (
       <Switch
-        label={field.label}
+        label={label}
         checked={value === undefined ? field.default === true : value === true}
         onChange={(e) => onChange(e.currentTarget.checked)}
       />
@@ -269,14 +285,14 @@ export function FieldInput({
   if (field.kind === "select" || field.kind === "icon" || field.kind === "work") {
     const data =
       field.kind === "select"
-        ? (field.options ?? [])
+        ? (field.options ?? []).map((o) => ({ value: o.value, label: labelIn(o, lang) }))
         : field.kind === "icon"
           ? ctx.icons.map((i) => ({ value: i, label: i }))
           : ctx.works;
     return (
       <Select
-        label={field.label}
-        description={field.hint}
+        label={label}
+        description={hint}
         data={data}
         value={text || (field.default as string | undefined) || null}
         onChange={(v) => onChange(v ?? "")}
@@ -288,10 +304,10 @@ export function FieldInput({
   }
   return (
     <Stack gap={4}>
-      <SingleInput field={field} label={field.label} value={text} onChange={onChange} />
-      {field.hint && (
+      <SingleInput field={field} label={label} value={text} onChange={onChange} />
+      {hint && (
         <Text size="xs" c="dimmed">
-          {field.hint}
+          {hint}
         </Text>
       )}
     </Stack>

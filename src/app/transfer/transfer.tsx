@@ -13,20 +13,29 @@ import {
   Title,
 } from "@mantine/core";
 import { IconDownload, IconUpload } from "@tabler/icons-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { report } from "@/components/result";
-import type { Plan } from "@/lib/transfer";
+import type { Kind } from "@/lib/files";
 import { importAction } from "../actions";
 
-const ACTIONS = {
-  create: ["blue", "新建"],
-  update: ["yellow", "修改"],
-  unchanged: ["gray", "不变"],
-} as const;
-const KINDS = { page: "页面", component: "区块", global: "全局", text: "文字" } as const;
+type Plan = {
+  items: {
+    kind: Kind;
+    id: string;
+    label: string;
+    action: "create" | "update" | "unchanged";
+    take?: boolean;
+  }[];
+  notes: string[];
+};
+
+const ACTION_COLOR = { create: "blue", update: "yellow", unchanged: "gray" } as const;
 
 export function Transfer() {
+  const t = useTranslations("transfer");
+  const tf = useTranslations("files");
   const router = useRouter();
   const [file, setFile] = useState<{ name: string; text: string }>();
   const [plan, setPlan] = useState<Plan>();
@@ -42,25 +51,21 @@ export function Transfer() {
     if (report(r)) setPlan(r.value);
   };
   const changed = plan?.items.filter((i) => i.action !== "unchanged") ?? [];
+  const count = (a: string) => plan?.items.filter((i) => i.action === a).length ?? 0;
   return (
     <Stack gap="lg">
       <Title order={1} fz={22}>
-        下载与上传
+        {t("title")}
       </Title>
       <Card withBorder>
         <Title order={2} fz={18} mb="xs">
-          下载
+          {t("download")}
         </Title>
         <Text size="sm" c="dimmed" mb="sm">
-          下载的是现在的草稿（工作副本）。单个页面、区块和全局资料在它们自己的编辑页下载。改好后在下面上传，就会变回草稿，签入后生效。
+          {t("downloadHelp")}
         </Text>
         <Group>
-          {(
-            [
-              ["site", "整个网站"],
-              ["texts", "界面文字"],
-            ] as const
-          ).map(([kind, label]) =>
+          {(["site", "texts"] as const).map((kind) =>
             (["json", "xml"] as const).map((format) => (
               <Button
                 key={kind + format}
@@ -69,7 +74,7 @@ export function Transfer() {
                 variant="default"
                 leftSection={<IconDownload size={16} />}
               >
-                {label}（{format.toUpperCase()}）
+                {t(kind === "site" ? "wholeSite" : "texts")} ({format.toUpperCase()})
               </Button>
             )),
           )}
@@ -77,16 +82,15 @@ export function Transfer() {
       </Card>
       <Card withBorder>
         <Title order={2} fz={18} mb="xs">
-          上传
+          {t("upload")}
         </Title>
         <Text size="sm" c="dimmed" mb="sm">
-          JSON 或 XML，要是 CMS
-          下载的格式。先检查、列出会改什么，确认后才写入。页面文件里的地址如果还没有页面，就会新建一个页面（新的网址，先是停用的）。
+          {t("uploadHelp")}
         </Text>
         <FileButton onChange={read} accept=".json,.xml,application/json,application/xml,text/xml">
           {(props) => (
             <Button {...props} leftSection={<IconUpload size={16} />} loading={busy}>
-              选择文件
+              {t("choose")}
             </Button>
           )}
         </FileButton>
@@ -107,23 +111,28 @@ export function Transfer() {
               </Alert>
             )}
             <Text size="sm">
-              会新建 {plan.items.filter((i) => i.action === "create").length} 项，修改{" "}
-              {plan.items.filter((i) => i.action === "update").length} 项，
-              {plan.items.filter((i) => i.action === "unchanged").length} 项不变。
+              {t("summary", { create: count("create"), update: count("update"), same: count("unchanged") })}
             </Text>
             {!!changed.length && (
               <Table verticalSpacing={4}>
                 <Table.Tbody>
                   {changed.slice(0, 300).map((i) => (
                     <Table.Tr key={`${i.kind}:${i.id}`}>
-                      <Table.Td w={70}>{KINDS[i.kind]}</Table.Td>
+                      <Table.Td w={90}>{tf(`kinds.${i.kind}`)}</Table.Td>
                       <Table.Td>
                         <Text size="sm">{i.label}</Text>
                       </Table.Td>
-                      <Table.Td w={80}>
-                        <Badge color={ACTIONS[i.action][0]} variant="light">
-                          {ACTIONS[i.action][1]}
-                        </Badge>
+                      <Table.Td w={200}>
+                        <Group gap={4}>
+                          <Badge color={ACTION_COLOR[i.action]} variant="light">
+                            {t(`actions.${i.action}`)}
+                          </Badge>
+                          {i.take && (
+                            <Badge color="blue" variant="outline">
+                              {t("willTake")}
+                            </Badge>
+                          )}
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -138,17 +147,17 @@ export function Transfer() {
                   setBusy(true);
                   const r = await importAction(file!.text, true);
                   setBusy(false);
-                  if (report(r, "已写入草稿：到“签入”页签入后生效")) {
+                  if (report(r, t("applied"))) {
                     setPlan(undefined);
                     setFile(undefined);
                     router.refresh();
                   }
                 }}
               >
-                确认写入（{changed.length} 项）
+                {t("apply", { n: changed.length })}
               </Button>
               <Button variant="default" onClick={() => setPlan(undefined)}>
-                取消
+                {tf("cancel")}
               </Button>
             </Group>
           </Stack>
