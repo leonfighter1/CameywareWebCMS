@@ -15,7 +15,6 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import Link from "next/link";
 import { Frame } from "@/components/frame";
 import { TYPES } from "@/lib/catalog";
 import { database } from "@/lib/server";
@@ -39,7 +38,7 @@ export default async function ComponentsPage({ searchParams }: { searchParams: P
         {!type && (
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             {Object.entries(TYPES).map(([t, d]) => (
-              <Card key={t} withBorder component={Link} href={`/components/?type=${t}`}>
+              <Card key={t} withBorder component="a" href={`/components/?type=${t}`}>
                 <Text fw={600}>{d.label}</Text>
                 <Text size="sm" c="dimmed">
                   {d.description}
@@ -65,7 +64,7 @@ export default async function ComponentsPage({ searchParams }: { searchParams: P
                     <TableTr key={c.id}>
                       <TableTd>
                         <Group gap={6}>
-                          <Anchor component={Link} href={`/components/${c.id}`} size="sm">
+                          <Anchor href={`/components/${c.id}`} size="sm">
                             {c.name || c.id}
                           </Anchor>
                           {state.has(c.id) && (

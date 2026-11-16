@@ -18,6 +18,16 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 - **Fix:** `isArray` by the element's path (`cms.page`, `cms.texts.text`; `item` anywhere).
 - **Rule:** decide an XML list by its path in the document; test every round trip with the real catalog's fields.
 
+## 6. A server component can't hand next/link to Mantine
+
+- **Symptom:** /components answered 「Server error」 (the owner, through the tunnel): 「Functions cannot be passed directly
+  to Client Components」 in the log.
+- **Cause:** `component={Link}` on a Mantine Card and Anchor in a server component: a function can't cross to the
+  browser. The walk-through opened every editor but not that list, so nothing saw it.
+- **Fix:** plain links there (`component="a"`, `href`).
+- **Rule:** in a server component, no component as a prop; enforced by tests/server-components.test.ts (with rule 4's
+  dotted parts). After a change, open every route, not only the ones the flow passes through.
+
 ## 5. spawn with shell: true joins the arguments unquoted
 
 - **Symptom:** 推到正式站 pushed nothing: the commit 「Content: release 1 (tester)」 failed (found by tests/publish.test.ts
