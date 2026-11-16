@@ -560,6 +560,28 @@ describe("page layouts and placements (S4)", () => {
       savePage(pg, page.id, { blocks: [{ ...page.blocks[0]!, style: accordion }] }, "lee"),
     ).rejects.toMatchObject({ details: [expect.objectContaining({ key: "check.noTemplate" })] });
   });
+
+  it("keeps components side by side in a row, one twice too (S5): to the website and through a WebPage", async () => {
+    await take(pg, homeItem, "lee");
+    const page = (await listPages(pg)).find((p) => p.path === "/")!;
+    const at = page.blocks.findIndex((b) => b.zone === "main");
+    const blocks = page.blocks.map((b, i) => (i === at || i === at + 1 ? { ...b, row: "r-pair" } : b));
+    blocks.splice(at + 2, 0, { ...blocks[at]! });
+    await savePage(pg, page.id, { blocks }, "lee");
+    const built = (await buildContent(pg, "draft")).pages.find((p) => p.path === "/")!;
+    expect(built.blocks.filter((b) => b.row === "r-pair").map((b) => b.id)).toEqual([
+      blocks[at]!.id,
+      blocks[at + 1]!.id,
+      blocks[at]!.id,
+    ]);
+    const xml = toXml(await exportDoc(pg, "page", page.id));
+    expect(xml.split("<RowId>r-pair</RowId>").length - 1).toBe(3);
+    const plan = await importDoc(pg, fromXml(xml), "lee", false);
+    expect(plan.items).toEqual([expect.objectContaining({ kind: "page", action: "unchanged" })]);
+    await expect(
+      savePage(pg, page.id, { blocks: [{ ...page.blocks[0]!, row: "Row 1" }] }, "lee"),
+    ).rejects.toMatchObject({ details: [expect.objectContaining({ key: "check.badRow" })] });
+  });
 });
 
 describe("resource bundles", () => {

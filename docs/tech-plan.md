@@ -181,6 +181,27 @@ WP23 took it: the page editor is Bell's, by drag and drop.
 | WP24 | A page's download and upload as Bell's WebPage (MetaData; Components with ZoneId, ZoneIndex, ComponentFilePath, StyleFilePath), the old form still read; a new layout and new styles go along with a page |
 | WP25 | Checks: the layout markup and zones in both repositories, migration 4, layouts and placements in the workflow, the WebPage round trip; every route in both languages; a browser walk                      |
 
+## S5 Rows of components (big: CMS v5.0.0, website v2.3.0)
+
+**The owner (2026-11-16), with three screenshots of Bell's page editor (Row 1 holding a BannerGroup and a FreeForm side
+by side; a BannerGroup and a FreeForm dragged into Row 2; Row dragged from the palette into the gap between Row 1 and
+Row 2):**
+
+> another thing: we should be able to add new row to the page level, also rows can be drag and drop reordered, row
+> index don't carry. check the screenshot.one row can be added multiple components(can be duplicated components as well)
+
+**Read as:** a zone of the layout holds rows; a row holds one or more components side by side, the same one twice too;
+新的一行 in the palette makes a row; a whole row drags to another place; a row's number is where it stands, never kept
+with it. Kept as placements in one list with an optional row key (no migration: a placement without one is a row
+alone), the editor's empty rows saved when their first component is.
+
+| WP   | What                                                                                                                                                                        |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP26 | The website: `Block.row`, `rowsOf` and `isRowKey` (`layouts.ts`, shared); a row of several side by side in even columns, stacked on a phone; a block twice on a page        |
+| WP27 | The CMS: `Placement.row` checked, built, seeded; `rows.ts` (rows of a zone, a placement put beside a row or as a row, a card or a row moved); `placeBlockAction` through it |
+| WP28 | The editor: 新的一行, rows with a bar (drag, up, down, delete), components side by side (drag, left, right, which half they are dropped on), moves shown at once            |
+| WP29 | The WebPage's `RowId` both ways; checks: the row functions, a row to the website and through a WebPage, a bad key; a browser walk                                           |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -210,6 +231,26 @@ WP23 took it: the page editor is Bell's, by drag and drop.
 | WP23 | done                                         | v4.0.0                 |
 | WP24 | done                                         | v4.0.0                 |
 | WP25 | done                                         | v4.0.0, website v2.2.0 |
+| WP26 | done                                         | website v2.3.0         |
+| WP27 | done                                         | v5.0.0                 |
+| WP28 | done                                         | v5.0.0                 |
+| WP29 | done                                         | v5.0.0, website v2.3.0 |
+
+## 阶段总结 S5 (v5.0.0, 2026-11-16)
+
+1. **Delivered:** WP26 rows on the website (`Block.row`, `rowsOf`, `isRowKey`; `Stacked` draws a row of several as a
+   `SimpleGrid`, 1 / 2 / up to 4 columns; blocks keyed by index), website v2.3.0. WP27 `Placement.row` (checked by
+   `check.badRow`, assembled, seeded) and `src/lib/rows.ts`, the one place rows change, used by the editor and by
+   `placeBlockAction`. WP28 the editor: 新的一行, row bars, components side by side, moves at once (`useOptimistic`).
+   WP29 the WebPage's `RowId`; the checks below.
+2. **Numbers:** CMS 44 unit tests (39 before); website 36 (35 before); a browser walk on the real database.
+3. **Against the plan:** no migration (a row key is optional, so every saved page reads as before); empty rows live in
+   the editor until filled rather than in the page; a drop on a component's right half places after it (the walk found
+   a notice dropped "into the row" landing before the image it was dropped on).
+4. **Mistakes:** 11 (a drag's payload in a ref read by helper-built handlers fails the compiler's refs rule: carry it
+   in dataTransfer); 12 (a walk's drag measured during a refresh lands on what moved: let a save settle first).
+5. **Next:** the owner's look at rows; website v2.1.0–v2.3.0 must be on GitHub before a page with a CMS template,
+   layout, style or a row of several is pushed to production (the old site stacks a row's blocks one under another).
 
 ## 阶段总结 S4 (v4.0.0, 2026-11-16)
 

@@ -48,7 +48,7 @@ import {
   templateProblems,
 } from "./store";
 import { type Both, CmsError, type Detail, msg } from "./words";
-import { defaultZone, isBuiltinLayout, layoutOf } from "@/generated/layouts";
+import { defaultZone, isBuiltinLayout, isRowKey, layoutOf } from "@/generated/layouts";
 import { isL10n, isPagePath, type L10n, LOCALES } from "@/generated/model";
 
 /** A block (a component's content); [template] only in a page file of S3 (its style there). */
@@ -74,8 +74,11 @@ type PageMeta = {
   width?: string;
   spacing?: string;
 };
-/** A component placed on a page: its zone, its place in it, its file's path and its style's. */
-type ComponentRef = { zone: string; index?: number; component: string; style?: string };
+/**
+ * A component placed on a page: its zone, its place in it, the row it shares with the components next to it (S5; none:
+ * a row alone), its file's path and its style's.
+ */
+type ComponentRef = { zone: string; index?: number; row?: string; component: string; style?: string };
 type WebPageDoc = { page: PageMeta; components: ComponentRef[] };
 /** A page file of before S4: its blocks inside it. */
 type PageDoc = { page: PageMeta; blocks: BlockDoc[] };
@@ -133,6 +136,7 @@ async function webPageDoc(db: Db, p: PageRow, types: Map<string, string>): Promi
       return {
         zone: b.zone,
         index: n,
+        ...(b.row && { row: b.row }),
         component: componentPath(type, b.id),
         style: stylePath(type, b.style),
       };
@@ -270,6 +274,7 @@ function webPageXml(w: WebPageDoc) {
       Component: w.components.map((c) => ({
         ZoneId: c.zone,
         ZoneIndex: String(c.index ?? 0),
+        RowId: c.row,
         ComponentFilePath: c.component,
         StyleFilePath: c.style,
       })),
@@ -372,6 +377,7 @@ function webPageFromXml(n: Record<string, unknown>): WebPageDoc {
       return {
         zone: str(o.ZoneId),
         index: Number(str(o.ZoneIndex)) || 0,
+        row: str(o.RowId) || undefined,
         component: str(o.ComponentFilePath),
         style: str(o.StyleFilePath) || undefined,
       };
@@ -691,7 +697,9 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
         errors.push(at(where, msg("check.noTemplate", { id: own })));
       if (!/^[a-z][a-z0-9_-]{0,31}$/.test(c.zone))
         errors.push(at(where, msg("check.badZone", { zone: c.zone })));
-      placements.push(placement({ id, zone: c.zone, style: own }));
+      if (c.row !== undefined && !isRowKey(c.row))
+        errors.push(at(where, msg("check.badRow", { row: c.row })));
+      placements.push(placement({ id, zone: c.zone, row: c.row, style: own }));
     }
     await putPage(w.page, placements, layoutName, where);
   };

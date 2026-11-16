@@ -11,7 +11,8 @@ import { type Item, putBack, take } from "@/lib/files";
 import { toHant } from "@/lib/hant";
 import { attempt, database, editor, publisher } from "@/lib/server";
 import { fieldsOf } from "@/lib/catalog";
-import { starterLayout } from "@/lib/pages";
+import { placement, starterLayout } from "@/lib/pages";
+import { insertPlacement, type Target } from "@/lib/rows";
 import {
   createComponent,
   createLayout,
@@ -84,9 +85,9 @@ export async function deletePageAction(id: string) {
 
 /**
  * A component placed on [pageId] (the page editor's rows, after Bell's Component Attributes: 「Use Shared / Create New /
- * Copy From Existing」): [existing] (shared), a new one of [type] named [name], or a copy of [copyOf]'s content; in [zone]
- * with [style]; at [at] (before the place there; the end of the zone when left out), or in place of the place at
- * [replace] (its zone and style kept unless given).
+ * Copy From Existing」): [existing] (shared), a new one of [type] named [name], or a copy of [copyOf]'s content; with
+ * [style]; at [to] (rows.ts: beside a row's components, or a row of its own), or in place of the place at [replace] (its
+ * zone and row kept).
  */
 export async function placeBlockAction(
   pageId: string,
@@ -95,9 +96,8 @@ export async function placeBlockAction(
     type?: string;
     name?: string;
     copyOf?: string;
-    zone: string;
     style?: string;
-    at?: number;
+    to: Target;
     replace?: number;
   },
 ) {
@@ -114,13 +114,12 @@ export async function placeBlockAction(
         id = await createComponent(tx, source.type, o.name || source.name, user.login, source.data);
       }
       id ??= await createComponent(tx, o.type ?? "", o.name ?? "", user.login);
-      const blocks = [...page.blocks];
-      const next = { id, zone: o.zone, style: o.style };
-      if (o.replace !== undefined && blocks[o.replace]) blocks[o.replace] = next;
-      else {
-        const last = blocks.map((b) => b.zone).lastIndexOf(o.zone);
-        blocks.splice(o.at ?? (last < 0 ? blocks.length : last + 1), 0, next);
-      }
+      const old = o.replace !== undefined ? page.blocks[o.replace] : undefined;
+      const blocks = old
+        ? page.blocks.map((b, i) =>
+            i === o.replace ? placement({ id, zone: old.zone, row: old.row, style: o.style }) : b,
+          )
+        : insertPlacement(page.blocks, placement({ id, zone: o.to.zone, style: o.style }), o.to);
       await savePage(tx, pageId, { blocks }, user.login);
       done();
       return id;

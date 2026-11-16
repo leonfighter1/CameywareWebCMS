@@ -112,6 +112,24 @@ export function defaultZone(zones: string[], full: boolean, fullZones: string[] 
   return zones.includes("main") ? "main" : (zones[0] ?? "main");
 }
 
+/**
+ * A zone's components as rows (the owner, 2026-11-16: 「one row can be added multiple components (can be duplicated
+ * components as well)」): the ones next to each other with the same row key stand side by side in one row; one without a
+ * key is a row of its own. A row is numbered by where it stands, never by an index kept with it.
+ */
+export function rowsOf<T extends { row?: string }>(items: T[]): T[][] {
+  const rows: T[][] = [];
+  for (const item of items) {
+    const last = rows.at(-1);
+    if (item.row && last && last[0]!.row === item.row) last.push(item);
+    else rows.push([item]);
+  }
+  return rows;
+}
+
+/** A row's key: lower-case letters, digits and hyphens, as the CMS makes them (a WebPage file may carry its own). */
+export const isRowKey = (key: string) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(key);
+
 /** A link of a breadcrumb: a page's address and its title in the page's language. */
 export type Crumb = { path: string; title: string };
 

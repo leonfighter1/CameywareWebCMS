@@ -13,7 +13,7 @@ import { claimNew, fileStates, type FileRow, KINDS, type Kind, mustHold } from "
 import { canonical } from "./json";
 import { type Placement, placement } from "./pages";
 import { type Both, CmsError, msg } from "./words";
-import { isBuiltinLayout, LAYOUT_FIELDS, LAYOUTS } from "@/generated/layouts";
+import { isBuiltinLayout, isRowKey, LAYOUT_FIELDS, LAYOUTS } from "@/generated/layouts";
 import {
   GLOBAL_KEYS,
   isPagePath,
@@ -369,6 +369,7 @@ async function checkPage(db: Db, id: string, p: Partial<PageRow>) {
       if (!c) errors.push(msg("check.noBlock", { id: b.id }));
       if (!/^[a-z][a-z0-9_-]{0,31}$/.test(b.zone ?? ""))
         errors.push(msg("check.badZone", { zone: b.zone ?? "" }));
+      if (b.row !== undefined && !isRowKey(b.row)) errors.push(msg("check.badRow", { row: b.row }));
       if (b.style && (!styles.has(b.style) || (c && styles.get(b.style)!.type !== c.type)))
         errors.push(msg("check.noTemplate", { id: b.style }));
     }
@@ -842,6 +843,7 @@ function assemble(
                 type: c.type,
                 name: c.name,
                 zone: b.zone,
+                ...(b.row && { row: b.row }),
                 ...(b.style && { template: b.style }),
                 data: c.data,
               },

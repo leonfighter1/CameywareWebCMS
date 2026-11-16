@@ -2,6 +2,25 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (d): v5.0.0, S5 (rows of components)
+
+- The owner's request (Bell's page editor: a Row in the palette, rows dragged, two components side by side in a row) is
+  in docs/tech-plan.md (S5). A placement has an optional row key (`Placement.row`, the website's `Block.row`): the
+  placements next to each other in a zone with one key are a row (the website's `rowsOf`); none is a row alone, so the
+  pages need no migration and a row's number is where it stands.
+- `src/lib/rows.ts` (pure, for the editor and the server): `rowsIn`, `insertPlacement`, `moveCard`, `moveRow` on a
+  `Target` (beside a row's placements, before one of them, or a row of its own before another row; a new empty row's
+  key); a row alone gets a key when another joins it; a move that changes nothing gives the list back.
+  `placeBlockAction` places through it (a replaced placement keeps its zone and row); `checkPage` and the WebPage upload
+  refuse a bad key (`check.badRow`); assemble, seed and the WebPage (`RowId`) carry it.
+- The editor: 新的一行 in the palette (an empty row kept in the editor until its first component is saved), rows with a
+  bar (drag, up, down, delete with a confirm), components side by side (drag, left, right; dropped on a component's
+  right half, after it). What is dragged travels in the drag's data (mistake 11); moves show at once (`useOptimistic`).
+- The walk (`cms-s5.cjs`): an empty row, an image (new), a notice beside it (new), the image again (shared), the row
+  to the top, a component right, all kept after a reload; side by side on cms-preview at 1440, stacked at 390; all
+  discarded. It found its own drag landing on a moved row while a save refreshed the page (mistake 12).
+- Checks: 44 unit tests; production untouched (release 5).
+
 ## 2026-11-16 (c): v4.0.0, S4 (page layouts, the page editor, a style per placement)
 
 - The owner's request (Bell's Productivity_Tech.xml, then its page editor's screenshots) and L1–L2 are in

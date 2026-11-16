@@ -16,8 +16,22 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 9. Never round-trip a source file through Get-Content / Set-Content in Windows PowerShell: rename with the Edit tool or
    node; if it happens, undo it with the 1252 round trip, not git checkout.
 10. In Playwright, wait for a control inside a Mantine Modal or Drawer, never for the modal's own data-testid
+11. Carry a drag's payload in dataTransfer (kind in the type, data as JSON), never in a ref read by handlers a helper builds
+12. In a browser walk, let a save's refresh settle before the next drag; when a drop does nothing, log the dragstart's payload first
 
 ## Log
+
+### 2026-11-16: A browser walk's drag landed on what moved under the pointer
+- **Symptom:** dragging row 2's bar moved nothing: the drag's payload was row 1's component (index 0)
+- **Root cause:** the drag started right after a save, while its refresh still changed the layout: Playwright measured the bar, then pressed where row 1 had moved
+- **Fix:** the walk waits for the save's refresh to settle before the next drag
+- **Rule:** In a browser walk, let a save's refresh settle before the next drag; when a drop does nothing, log the dragstart's payload first (Rule 12)
+
+### 2026-11-16: Drag handlers spread from a helper read a ref during render
+- **Symptom:** eslint react-hooks/refs: Cannot access ref value during render, on the zone list that called gap() / row() / card()
+- **Root cause:** the dragged item lived in a useRef read by onDragOver/onDrop closures built by a helper; the compiler can't see they run only in events
+- **Fix:** what is dragged travels in the drag itself: its kind in the dataTransfer type (readable during dragover), all of it as the data (read on drop); no ref
+- **Rule:** Carry a drag's payload in dataTransfer (kind in the type, data as JSON), never in a ref read by handlers a helper builds (Rule 11)
 
 ### 2026-11-16: A browser walk waited on a Mantine Modal's data-testid
 - **Symptom:** locator.waitFor timed out: the style browser's data-testid resolved to a hidden mantine-Modal-root, though the dialog was open on screen

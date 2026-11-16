@@ -62,7 +62,9 @@ export async function importSnapshot(db: Db, content: SiteContent, by: string) {
       (id) => p.blocks.find((b) => b.id === id)?.type,
       (id) => p.blocks.find((b) => b.id === id)?.template,
     );
-    const blocks = up.blocks.map((pl, i) => placement({ ...pl, zone: p.blocks[i]?.zone ?? pl.zone }));
+    const blocks = up.blocks.map((pl, i) =>
+      placement({ ...pl, zone: p.blocks[i]?.zone ?? pl.zone, row: p.blocks[i]?.row }),
+    );
     await db.query(
       `insert into pages (id, path, status, title, description, layout, breadcrumb, sitemap, blocks, updated_by)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,

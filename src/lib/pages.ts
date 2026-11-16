@@ -8,13 +8,22 @@ import type { Transaction } from "@electric-sql/pglite";
 import { TYPES } from "./catalog";
 import { DEFAULT_LAYOUT, defaultZone, isBuiltinLayout, LAYOUTS, layoutOf } from "@/generated/layouts";
 
-/** A component on a page: which (its id), where (a zone of the page's layout), drawn how (a template's id, or none). */
-export type Placement = { id: string; zone: string; style?: string };
+/**
+ * A component on a page: which (its id), where (a zone of the page's layout, and a row in it: next to the placements
+ * before it with the same row key, layouts.ts `rowsOf`; none: a row alone), drawn how (a template's id, or none).
+ */
+export type Placement = { id: string; zone: string; row?: string; style?: string };
 
-/** A placement as stored: its style only when it has one (so two placements alike compare alike). */
-export const placement = (p: { id: string; zone: string; style?: string | null }): Placement => ({
+/** A placement as stored: its row and style only when it has them (so two placements alike compare alike). */
+export const placement = (p: {
+  id: string;
+  zone: string;
+  row?: string | null;
+  style?: string | null;
+}): Placement => ({
   id: p.id,
   zone: p.zone,
+  ...(p.row ? { row: p.row } : {}),
   ...(p.style ? { style: p.style } : {}),
 });
 

@@ -2,9 +2,13 @@
 /**
  * A page's editor, as Bell's CMS.Net has it (the owner, 2026-11-16, with its screenshots: 「you can drag and drop rows
  * (create new row), and create a new file of component based on the drag and drop, reorder. you can create component and
- * pick avaialbe styles from the files」): the available components at the left, dragged into a zone of the page's layout
- * to make a row; each row a component (its content, its style), dragged to another place or zone; its content chosen as
- * shared, new or a copy, its style browsed with how many pages use each; the page's properties behind 元数据.
+ * pick avaialbe styles from the files」, then S5: 「we should be able to add new row to the page level, also rows can be
+ * drag and drop reordered, row index don't carry … one row can be added multiple components (can be duplicated components
+ * as well)」): the available components at the left and 新的一行 under them; each zone of the page's layout a list of
+ * rows, each row one or more components side by side (rows.ts). A component dropped into a row stands beside its others,
+ * between rows it makes a row of its own; 新的一行 makes an empty row to fill; a row is dragged by its bar, a component by
+ * its own. A component's content is chosen as shared, new or a copy, its style browsed with how many pages use each; the
+ * page's properties are behind 元数据.
  */
 import {
   ActionIcon,
@@ -14,6 +18,7 @@ import {
   Box,
   Button,
   Card,
+  Divider,
   Drawer,
   Flex,
   Group,
@@ -24,6 +29,7 @@ import {
   ScrollArea,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -37,6 +43,8 @@ import {
 import { modals } from "@mantine/modals";
 import {
   IconArrowDown,
+  IconArrowLeft,
+  IconArrowRight,
   IconArrowUp,
   IconCode,
   IconDownload,
@@ -45,18 +53,21 @@ import {
   IconEye,
   IconFile,
   IconGripVertical,
+  IconLayoutRows,
   IconListDetails,
   IconSearch,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, type ReactNode, useOptimistic, useState, useTransition } from "react";
 import { FieldsEditor } from "@/components/fields";
 import { Editable, FileBar, isMine, StateBadges } from "@/components/files";
 import { report } from "@/components/result";
 import type { FileView, VersionView } from "@/lib/present";
+import { moveCard, moveRow, newRowKey, type Row, rowsIn, type Target } from "@/lib/rows";
 import type { L10n } from "@/generated/model";
 import { deletePageAction, placeBlockAction, savePageAction, setBlocksAction } from "../../actions";
 
@@ -66,6 +77,7 @@ const BUILTIN = "builtin";
 type Placed = {
   id: string;
   zone: string;
+  row?: string;
   style?: string;
   type: string;
   label: string;
@@ -80,20 +92,81 @@ export type StyleInfo = Option & { uses: number; pages: string[] };
 type Library = { id: string; type: string; name: string; file?: FileView };
 type T = ReturnType<typeof useTranslations<"page">>;
 
-/** What is being dragged: a type from the available components, or a row. */
-type Drag = { kind: "type"; type: string } | { kind: "row"; index: number } | null;
+/** What is being dragged: a type, 新的一行, a row (its placements), or one component of a row. */
+type Drag =
+  | { kind: "type"; type: string }
+  | { kind: "newrow" }
+  | { kind: "row"; at: number[] }
+  | { kind: "card"; index: number };
+type Kind = Drag["kind"];
 
-/** [list] with the place at [from] put before the place at [before] (the end of [zone] when null), in [zone]. */
-function moved(list: Placed[], from: number, zone: string, before: number | null) {
-  const item = { ...list[from]!, zone };
-  const rest = list.filter((_, n) => n !== from);
-  let at: number;
-  if (before === null) {
-    const last = rest.map((p) => p.zone).lastIndexOf(zone);
-    at = last < 0 ? rest.length : last + 1;
-  } else at = before > from ? before - 1 : before;
-  rest.splice(at, 0, item);
-  return rest;
+/**
+ * What is dragged travels with the drag: its kind in the data's type (all a target is told while something is over it),
+ * all of it as the data (read on the drop). Browsers lower-case the type, so the kinds are lower-case.
+ */
+const CARRIED = "application/x-cms-";
+const carry = (e: DragEvent, d: Drag) => {
+  e.stopPropagation();
+  e.dataTransfer.setData(CARRIED + d.kind, JSON.stringify(d));
+  e.dataTransfer.effectAllowed = "copyMove";
+};
+const kindOf = (e: DragEvent) =>
+  Array.from(e.dataTransfer.types)
+    .find((x) => x.startsWith(CARRIED))
+    ?.slice(CARRIED.length) as Kind | undefined;
+const carried = (e: DragEvent, kind: Kind) => JSON.parse(e.dataTransfer.getData(CARRIED + kind)) as Drag;
+
+/**
+ * A row made empty (新的一行) and not filled yet: kept here until a component is saved into it, in [zone] before the row
+ * known as [before] (`rowName`; none: the end of the zone).
+ */
+type Fresh = { key: string; zone: string; before: string | null };
+
+/** What keeps naming a row while the placements around it change: its key, or its only component's id. */
+const rowName = (row: Row, list: Placed[]) => row.row ?? `@${list[row.at[0]!]!.id}`;
+
+/** A palette item: a type or 新的一行, dragged onto the page or clicked. */
+function PaletteItem({
+  label,
+  mine,
+  testId,
+  drag,
+  click,
+  icon,
+}: {
+  label: string;
+  mine: boolean;
+  testId: string;
+  drag: Drag;
+  click: () => void;
+  icon?: ReactNode;
+}) {
+  return (
+    <UnstyledButton
+      draggable={mine}
+      disabled={!mine}
+      onDragStart={(e: DragEvent) => carry(e, drag)}
+      onClick={() => mine && click()}
+      data-testid={testId}
+      style={{
+        border: "1px solid var(--mantine-color-default-border)",
+        borderRadius: 6,
+        padding: "6px 10px",
+        cursor: mine ? "grab" : "default",
+        opacity: mine ? 1 : 0.6,
+      }}
+    >
+      <Group justify="space-between" wrap="nowrap" gap={6}>
+        <Group gap={6} wrap="nowrap">
+          {icon}
+          <Text size="sm" truncate>
+            {label}
+          </Text>
+        </Group>
+        <IconGripVertical size={14} aria-hidden />
+      </Group>
+    </UnstyledButton>
+  );
 }
 
 export function PageEditor({
@@ -101,7 +174,7 @@ export function PageEditor({
   file,
   versions,
   page,
-  placements,
+  placements: saved,
   layouts,
   zones,
   styles,
@@ -140,15 +213,10 @@ export function PageEditor({
   const [properties, setProperties] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [frame, setFrame] = useState(0);
-  /** The place dialog: a new row of [type] in [zone] at [at], or the content of the row at [replace]. */
-  const [placing, setPlacing] = useState<{
-    type: string;
-    zone: string;
-    at?: number;
-    replace?: number;
-  } | null>(null);
+  /** The place dialog: a component of [type] put at [to], or the content of the place at [replace]. */
+  const [placing, setPlacing] = useState<{ type: string; to: Target; replace?: number } | null>(null);
   const [styling, setStyling] = useState<number | null>(null);
-  const drag = useRef<Drag>(null);
+  const [freshRows, setFresh] = useState<Fresh[]>([]);
   const [over, setOver] = useState<string | null>(null);
   const after = (ok: boolean) => {
     if (ok) {
@@ -156,15 +224,21 @@ export function PageEditor({
       setFrame((n) => n + 1);
     }
   };
-  const put = async (next: Placed[]) =>
-    after(
-      report(
-        await setBlocksAction(
-          page.id,
-          next.map((p) => ({ id: p.id, zone: p.zone, style: p.style })),
-        ),
-      ),
-    );
+  /** The placements as saved, or as a move left them while it is being saved (shown at once, not after the save). */
+  const [placements, show] = useOptimistic(saved);
+  const [, startTransition] = useTransition();
+  /** The placements as [next] has them; nothing to save when a move changed nothing (rows.ts gives the list back). */
+  const put = (next: Placed[]) => {
+    if (next === placements) return;
+    startTransition(async () => {
+      show(next);
+      const r = await setBlocksAction(
+        page.id,
+        next.map((p) => ({ id: p.id, zone: p.zone, row: p.row, style: p.style })),
+      );
+      if (report(r)) setFrame((n) => n + 1);
+    });
+  };
   const zoneList = zones[page.layout] ?? [];
   const known = new Set(zoneList.map((z) => z.name));
   const firstZone = zoneList.find((z) => z.name === "main")?.name ?? zoneList[0]?.name ?? "main";
@@ -173,32 +247,58 @@ export function PageEditor({
     (styles[p.type] ?? []).find((s) => s.value === (p.style ?? BUILTIN))?.label ??
     p.style ??
     t("builtinStyle");
+  /** The empty rows still empty: one a component was saved into is a row of the page now. */
+  const fresh = freshRows.filter((f) => !placements.some((p) => p.row === f.key));
 
-  /** A place to drop a row or a type: before the place [before], or at the end of [zone]. */
-  const slot = (zone: string, before: number | null, empty = false) => {
-    const key = `${zone}:${before ?? "end"}`;
+  /** Drop-target handlers: [key] lit while a kind it [accepts] is over it; [drop] given what was dragged and where. */
+  const target = (key: string, accepts: Kind[], drop: (d: Drag, e: DragEvent) => void) => ({
+    onDragOver: (e: DragEvent) => {
+      const kind = kindOf(e);
+      if (!mine || !kind || !accepts.includes(kind)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setOver(key);
+    },
+    onDragLeave: () => setOver((o) => (o === key ? null : o)),
+    onDrop: (e: DragEvent) => {
+      const kind = kindOf(e);
+      if (!kind || !accepts.includes(kind)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setOver(null);
+      drop(carried(e, kind), e);
+    },
+  });
+  const dragging = (d: Drag) => ({
+    draggable: mine,
+    onDragStart: (e: DragEvent) => carry(e, d),
+    onDragEnd: () => setOver(null),
+  });
+
+  /**
+   * The gap between rows, before the row [beforeRow] (the end of [zone] when none): a component dropped here is a row of
+   * its own, 新的一行 an empty row, a row or a component moved here stands here.
+   */
+  const gap = (zone: string, beforeRow: Row | undefined, empty = false) => {
+    const key = `gap:${zone}:${beforeRow?.at[0] ?? "end"}`;
     const on = over === key;
+    const to: Target = { zone, beforeRow: beforeRow?.at };
     return (
       <Box
-        key={`slot-${key}`}
-        data-testid={`drop-${zone}-${before ?? "end"}`}
-        onDragOver={(e: DragEvent) => {
-          if (!mine || !drag.current) return;
-          e.preventDefault();
-          setOver(key);
-        }}
-        onDragLeave={() => setOver((o) => (o === key ? null : o))}
-        onDrop={(e: DragEvent) => {
-          e.preventDefault();
-          setOver(null);
-          const d = drag.current;
-          drag.current = null;
-          if (!d) return;
-          if (d.kind === "row") put(moved(placements, d.index, zone, before));
-          else setPlacing({ type: d.type, zone, at: before ?? undefined });
-        }}
+        key={key}
+        data-testid={`drop-${zone}-${beforeRow ? beforeRow.at[0] : "end"}`}
+        {...target(key, ["type", "newrow", "row", "card"], (d) => {
+          if (d.kind === "type") setPlacing({ type: d.type, to });
+          else if (d.kind === "newrow")
+            setFresh((f) => [
+              ...f,
+              { key: newRowKey(), zone, before: beforeRow ? rowName(beforeRow, placements) : null },
+            ]);
+          else if (d.kind === "row") put(moveRow(placements, d.at, to));
+          else put(moveCard(placements, d.index, to));
+        })}
         style={{
-          height: empty ? 56 : on ? 40 : 10,
+          height: empty ? 56 : on ? 40 : 12,
           border: on || empty ? "2px dashed var(--mantine-color-default-border)" : undefined,
           borderColor: on ? "var(--mantine-primary-color-filled)" : undefined,
           borderRadius: 8,
@@ -216,134 +316,298 @@ export function PageEditor({
     );
   };
 
-  /** One row: its component, its content and style, what can be done to it. */
-  const row = (p: Placed, i: number, n: number, first: boolean, last: boolean) => (
-    <Card key={`${p.id}:${i}`} withBorder p={0} data-testid={`row-${p.id}`}>
-      <Group
-        justify="space-between"
-        wrap="nowrap"
-        px="sm"
-        py={6}
-        bg="var(--mantine-color-default-hover)"
-        draggable={mine}
-        onDragStart={(e: DragEvent) => {
-          drag.current = { kind: "row", index: i };
-          e.dataTransfer.effectAllowed = "move";
-        }}
-        onDragEnd={() => {
-          drag.current = null;
-          setOver(null);
-        }}
-        style={{ cursor: mine ? "grab" : undefined }}
-      >
-        <Group gap="xs" wrap="nowrap">
-          {mine && <IconGripVertical size={16} aria-hidden />}
-          <Text size="sm" c="dimmed">
-            {t("rowNo", { n })}
-          </Text>
-          <Text fw={600} size="sm" c={p.missing ? "red" : undefined}>
-            {p.missing ? t("missingBlock") : p.label}
-          </Text>
-        </Group>
+  /** A row's bar: its number, a grip to drag it by, what can be done to all of it. */
+  const rowBar = (n: number, grip: object, actions: ReactNode, note?: ReactNode) => (
+    <Group
+      justify="space-between"
+      wrap="nowrap"
+      px="sm"
+      py={6}
+      bg="var(--mantine-color-default-hover)"
+      style={{ cursor: mine ? "grab" : undefined }}
+      {...grip}
+    >
+      <Group gap="xs" wrap="nowrap">
+        {mine && <IconGripVertical size={16} aria-hidden />}
+        <Text size="sm" fw={600}>
+          {t("rowNo", { n })}
+        </Text>
+        {note}
+      </Group>
+      {mine && (
         <Group gap={2} wrap="nowrap">
-          {!p.missing && (
-            <Tooltip label={t("editContent")}>
+          {actions}
+        </Group>
+      )}
+    </Group>
+  );
+
+  /** A row of [zone]: its components side by side; one dropped on it stands beside them, on one of them before it. */
+  const row = (r: Row, k: number, all: Row[], n: number) => {
+    const key = `row:${r.at[0]}`;
+    const to: Target = { zone: r.zone, join: r.at };
+    return (
+      <Card
+        key={key}
+        withBorder
+        p={0}
+        data-testid={`row-${n}`}
+        style={over === key ? { borderColor: "var(--mantine-primary-color-filled)" } : undefined}
+      >
+        {rowBar(
+          n,
+          dragging({ kind: "row", at: r.at }),
+          <>
+            <ActionIcon
+              variant="subtle"
+              aria-label={t("up")}
+              disabled={k === 0}
+              onClick={() => put(moveRow(placements, r.at, { zone: r.zone, beforeRow: all[k - 1]?.at }))}
+            >
+              <IconArrowUp size={16} />
+            </ActionIcon>
+            <ActionIcon
+              variant="subtle"
+              aria-label={t("down")}
+              disabled={k === all.length - 1}
+              onClick={() => put(moveRow(placements, r.at, { zone: r.zone, beforeRow: all[k + 2]?.at }))}
+            >
+              <IconArrowDown size={16} />
+            </ActionIcon>
+            <Tooltip label={t("removeRow")}>
               <ActionIcon
-                component={Link}
-                href={`/components/${p.id}?page=${page.id}`}
                 variant="subtle"
-                aria-label={t("editContent")}
+                color="red"
+                aria-label={t("removeRow")}
+                onClick={() =>
+                  modals.openConfirmModal({
+                    title: t("removeRowTitle", { n }),
+                    children: <Text size="sm">{t("removeRowBody", { count: r.at.length })}</Text>,
+                    labels: { confirm: t("removeRow"), cancel: t("cancel") },
+                    confirmProps: { color: "red" },
+                    onConfirm: () => put(placements.filter((_, x) => !r.at.includes(x))),
+                  })
+                }
               >
-                <IconEdit size={16} />
+                <IconTrash size={16} />
               </ActionIcon>
             </Tooltip>
-          )}
-          {mine && (
-            <>
-              <Tooltip label={t("contentSource")}>
-                <ActionIcon
-                  variant="subtle"
-                  aria-label={t("contentSource")}
-                  onClick={() => setPlacing({ type: p.type, zone: p.zone, replace: i })}
-                >
-                  <IconFile size={16} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label={t("styleBrowse")}>
-                <ActionIcon variant="subtle" aria-label={t("styleBrowse")} onClick={() => setStyling(i)}>
-                  <IconCode size={16} />
-                </ActionIcon>
-              </Tooltip>
-              <ActionIcon
-                variant="subtle"
-                aria-label={t("up")}
-                disabled={first}
-                onClick={() => put(moved(placements, i, p.zone, neighbour(i, -1)))}
-              >
-                <IconArrowUp size={16} />
-              </ActionIcon>
-              <ActionIcon
-                variant="subtle"
-                aria-label={t("down")}
-                disabled={last}
-                onClick={() => put(moved(placements, i, p.zone, neighbour(i, 2)))}
-              >
-                <IconArrowDown size={16} />
-              </ActionIcon>
-              <Tooltip label={t("removeBlock")}>
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  aria-label={t("removeBlock")}
-                  onClick={() => put(placements.filter((_, x) => x !== i))}
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Tooltip>
-            </>
-          )}
-        </Group>
-      </Group>
-      <Stack gap={4} px="sm" py="xs">
-        <Group gap={6}>
-          <Text size="sm" fw={600}>
-            {t("contentLabel")}
-          </Text>
-          {p.missing ? (
-            <Text size="sm" c="red">
-              {p.id}
+          </>,
+        )}
+        <Box
+          p="sm"
+          {...target(key, ["type", "card"], (d) => {
+            if (d.kind === "type") setPlacing({ type: d.type, to });
+            else if (d.kind === "card") put(moveCard(placements, d.index, to));
+          })}
+        >
+          <SimpleGrid cols={{ base: 1, lg: Math.min(r.at.length, 3) }} spacing="sm">
+            {r.at.map((i, c) => card(placements[i]!, i, c, r))}
+          </SimpleGrid>
+          {over === key && (
+            <Text size="xs" c="dimmed" ta="center" mt={6}>
+              {t("dropInRow")}
             </Text>
-          ) : (
-            <Anchor component={Link} href={`/components/${p.id}?page=${page.id}`} size="sm">
-              {p.name || p.id}
-            </Anchor>
           )}
-          <StateBadges file={p.file} me={me} size="xs" />
-        </Group>
-        <Group gap={6}>
-          <Text size="sm" fw={600}>
-            {t("styleLabel")}
+        </Box>
+      </Card>
+    );
+  };
+
+  /** One component of a row: its content and style, what can be done to it; dragged by its bar. */
+  const card = (p: Placed, i: number, c: number, r: Row) => {
+    const key = `card:${i}`;
+    return (
+      <Card
+        key={`${p.id}:${i}`}
+        withBorder
+        p={0}
+        data-testid={`card-${p.id}`}
+        style={
+          over === key ? { borderColor: "var(--mantine-primary-color-filled)", borderWidth: 2 } : undefined
+        }
+        {...target(key, ["type", "card"], (d, e) => {
+          // Dropped on its right half: after it; on its left half: before it.
+          const box = e.currentTarget.getBoundingClientRect();
+          const before = e.clientX > box.left + box.width / 2 ? r.at[c + 1] : i;
+          const to: Target = { zone: r.zone, join: r.at, before };
+          if (d.kind === "type") setPlacing({ type: d.type, to });
+          else if (d.kind === "card") put(moveCard(placements, d.index, to));
+        })}
+      >
+        <Group
+          justify="space-between"
+          wrap="nowrap"
+          px="sm"
+          py={4}
+          bg="var(--mantine-primary-color-light)"
+          style={{ cursor: mine ? "grab" : undefined }}
+          {...dragging({ kind: "card", index: i })}
+        >
+          <Text
+            fw={600}
+            size="sm"
+            c={p.missing ? "red" : "var(--mantine-primary-color-light-color)"}
+            truncate
+          >
+            {p.missing ? t("missingBlock") : p.label}
           </Text>
-          {p.style ? (
-            <Anchor component={Link} href={`/templates/${p.style}`} size="sm">
-              {styleName(p)}
-            </Anchor>
-          ) : (
-            <Anchor component={Link} href={`/templates/builtin/${p.type}`} size="sm">
-              {styleName(p)}
-            </Anchor>
-          )}
+          <Group gap={0} wrap="nowrap">
+            {!p.missing && (
+              <Tooltip label={t("editContent")}>
+                <ActionIcon
+                  component={Link}
+                  href={`/components/${p.id}?page=${page.id}`}
+                  variant="subtle"
+                  size="sm"
+                  aria-label={t("editContent")}
+                >
+                  <IconEdit size={15} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {mine && (
+              <>
+                <Tooltip label={t("contentSource")}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={t("contentSource")}
+                    onClick={() => setPlacing({ type: p.type, to: { zone: p.zone }, replace: i })}
+                  >
+                    <IconFile size={15} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label={t("styleBrowse")}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={t("styleBrowse")}
+                    onClick={() => setStyling(i)}
+                  >
+                    <IconCode size={15} />
+                  </ActionIcon>
+                </Tooltip>
+                {r.at.length > 1 && (
+                  <>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      aria-label={t("left")}
+                      disabled={c === 0}
+                      onClick={() =>
+                        put(moveCard(placements, i, { zone: r.zone, join: r.at, before: r.at[c - 1] }))
+                      }
+                    >
+                      <IconArrowLeft size={15} />
+                    </ActionIcon>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      aria-label={t("right")}
+                      disabled={c === r.at.length - 1}
+                      onClick={() =>
+                        put(moveCard(placements, i, { zone: r.zone, join: r.at, before: r.at[c + 2] }))
+                      }
+                    >
+                      <IconArrowRight size={15} />
+                    </ActionIcon>
+                  </>
+                )}
+                <Tooltip label={t("removeBlock")}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    color="red"
+                    aria-label={t("removeBlock")}
+                    onClick={() => put(placements.filter((_, x) => x !== i))}
+                  >
+                    <IconTrash size={15} />
+                  </ActionIcon>
+                </Tooltip>
+              </>
+            )}
+          </Group>
         </Group>
-      </Stack>
-    </Card>
-  );
-  /**
-   * The place [by] places away from [i] in its zone, to move [i] before it: -1 one up; 2 one down (after the next one).
-   * None: the end of the zone.
-   */
-  const neighbour = (i: number, by: number) => {
-    const same = placements.map((p, n) => (p.zone === placements[i]!.zone ? n : -1)).filter((n) => n >= 0);
-    return same[same.indexOf(i) + by] ?? null;
+        <Stack gap={4} px="sm" py="xs">
+          <Group gap={6}>
+            <Text size="sm" fw={600}>
+              {t("contentLabel")}
+            </Text>
+            {p.missing ? (
+              <Text size="sm" c="red">
+                {p.id}
+              </Text>
+            ) : (
+              <Anchor component={Link} href={`/components/${p.id}?page=${page.id}`} size="sm">
+                {p.name || p.id}
+              </Anchor>
+            )}
+            <StateBadges file={p.file} me={me} size="xs" />
+          </Group>
+          <Group gap={6}>
+            <Text size="sm" fw={600}>
+              {t("styleLabel")}
+            </Text>
+            <Anchor
+              component={Link}
+              href={p.style ? `/templates/${p.style}` : `/templates/builtin/${p.type}`}
+              size="sm"
+            >
+              {styleName(p)}
+            </Anchor>
+          </Group>
+        </Stack>
+      </Card>
+    );
+  };
+
+  /** An empty row (新的一行) before [beforeRow]: a component dropped in it is its first; saved then. */
+  const freshRow = (f: Fresh, beforeRow: Row | undefined, n: number) => {
+    const key = `fresh:${f.key}`;
+    const to: Target = { zone: f.zone, beforeRow: beforeRow?.at, row: f.key };
+    return (
+      <Card
+        key={key}
+        withBorder
+        p={0}
+        data-testid={`row-${n}`}
+        data-fresh
+        style={{
+          borderStyle: "dashed",
+          ...(over === key && { borderColor: "var(--mantine-primary-color-filled)" }),
+        }}
+      >
+        {rowBar(
+          n,
+          {},
+          <Tooltip label={t("removeRow")}>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              aria-label={t("removeRow")}
+              onClick={() => setFresh((all) => all.filter((x) => x.key !== f.key))}
+            >
+              <IconX size={16} />
+            </ActionIcon>
+          </Tooltip>,
+          <Badge size="xs" variant="light" color="gray">
+            {t("emptyRowBadge")}
+          </Badge>,
+        )}
+        <Box
+          p="lg"
+          {...target(key, ["type", "card"], (d) => {
+            if (d.kind === "type") setPlacing({ type: d.type, to });
+            else if (d.kind === "card") put(moveCard(placements, d.index, to));
+          })}
+        >
+          <Text size="sm" c="dimmed" ta="center">
+            {t("emptyRow")}
+          </Text>
+        </Box>
+      </Card>
+    );
   };
 
   const stray = placements.map((p, i) => ({ p, i })).filter(({ p }) => !known.has(p.zone));
@@ -444,43 +708,50 @@ export function PageEditor({
             <ScrollArea.Autosize mah="calc(100vh - 260px)">
               <Stack gap={6}>
                 {types.map((x) => (
-                  <UnstyledButton
+                  <PaletteItem
                     key={x.value}
-                    draggable={mine}
-                    disabled={!mine}
-                    onDragStart={(e: DragEvent) => {
-                      drag.current = { kind: "type", type: x.value };
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onDragEnd={() => {
-                      drag.current = null;
-                      setOver(null);
-                    }}
-                    onClick={() => mine && setPlacing({ type: x.value, zone: firstZone })}
-                    data-testid={`palette-${x.value}`}
-                    style={{
-                      border: "1px solid var(--mantine-color-default-border)",
-                      borderRadius: 6,
-                      padding: "6px 10px",
-                      cursor: mine ? "grab" : "default",
-                      opacity: mine ? 1 : 0.6,
-                    }}
-                  >
-                    <Group justify="space-between" wrap="nowrap" gap={6}>
-                      <Text size="sm" truncate>
-                        {x.label}
-                      </Text>
-                      <IconGripVertical size={14} aria-hidden />
-                    </Group>
-                  </UnstyledButton>
+                    label={x.label}
+                    mine={mine}
+                    testId={`palette-${x.value}`}
+                    drag={{ kind: "type", type: x.value }}
+                    click={() => setPlacing({ type: x.value, to: { zone: firstZone } })}
+                  />
                 ))}
+                <Divider my={6} />
+                <PaletteItem
+                  label={t("newRow")}
+                  mine={mine}
+                  testId="palette-row"
+                  icon={<IconLayoutRows size={14} aria-hidden />}
+                  drag={{ kind: "newrow" }}
+                  click={() => setFresh((f) => [...f, { key: newRowKey(), zone: firstZone, before: null }])}
+                />
+                <Text size="xs" c="dimmed">
+                  {t("newRowHelp")}
+                </Text>
               </Stack>
             </ScrollArea.Autosize>
           </Card>
 
           <Stack gap="md" style={{ flex: 1, minWidth: 0 }} w="100%">
             {zoneList.map((z) => {
-              const here = placements.map((p, i) => ({ p, i })).filter(({ p }) => p.zone === z.name);
+              const rows = rowsIn(placements, z.name);
+              const named = new Set(rows.map((r) => rowName(r, placements)));
+              const freshBefore = (r: Row | undefined) =>
+                fresh.filter(
+                  (f) =>
+                    f.zone === z.name &&
+                    (r ? f.before === rowName(r, placements) : !named.has(f.before ?? "")),
+                );
+              const parts: ReactNode[] = [];
+              for (const [k, r] of [...rows, undefined].entries()) {
+                for (const f of freshBefore(r)) parts.push(freshRow(f, r, ++number));
+                if (r) {
+                  parts.push(gap(z.name, r));
+                  parts.push(row(r, k, rows, ++number));
+                }
+              }
+              const empty = !rows.length && !freshBefore(undefined).length;
               return (
                 <Box key={z.name} data-testid={`zone-${z.name}`}>
                   <Group gap="xs" mb={6}>
@@ -497,13 +768,8 @@ export function PageEditor({
                     )}
                   </Group>
                   <Stack gap={0}>
-                    {here.map(({ p, i }, k) => (
-                      <Box key={`${p.id}:${i}`}>
-                        {slot(z.name, i)}
-                        {row(p, i, ++number, k === 0, k === here.length - 1)}
-                      </Box>
-                    ))}
-                    {slot(z.name, null, !here.length)}
+                    {parts}
+                    {gap(z.name, undefined, empty)}
                   </Stack>
                 </Box>
               );
@@ -524,7 +790,7 @@ export function PageEditor({
                           size="xs"
                           placeholder={t("moveTo")}
                           data={zoneList.map((z) => ({ value: z.name, label: z.label }))}
-                          onChange={(v) => v && put(moved(placements, i, v, null))}
+                          onChange={(v) => v && put(moveCard(placements, i, { zone: v }))}
                         />
                       </Editable>
                     </Group>
@@ -736,8 +1002,8 @@ function Properties({
 const PER = 10;
 
 /**
- * Component Attributes (Bell's): a row's content, shared (a component already made), new, or a copy of one; its zone
- * when it is new; its style, browsed.
+ * Component Attributes (Bell's): a component's content, shared (a component already made), new, or a copy of one; its
+ * zone when it was clicked in rather than dropped somewhere; its style, browsed.
  */
 function PlaceDialog({
   t,
@@ -755,7 +1021,7 @@ function PlaceDialog({
 }: {
   t: T;
   pageId: string;
-  placing: { type: string; zone: string; at?: number; replace?: number };
+  placing: { type: string; to: Target; replace?: number };
   zones: Zone[];
   typeLabel: string;
   library: Library[];
@@ -769,7 +1035,10 @@ function PlaceDialog({
   const [source, setSource] = useState<"shared" | "new" | "copy">(library.length ? "shared" : "new");
   const [pick, setPick] = useState<string | null>(current?.id ?? null);
   const [name, setName] = useState("");
-  const [zone, setZone] = useState(placing.zone);
+  const [zone, setZone] = useState(placing.to.zone);
+  /** Clicked in from the palette: a row of its own at the end of the zone chosen here. */
+  const anywhere =
+    placing.replace === undefined && !placing.to.join && !placing.to.beforeRow && !placing.to.row;
   const [style, setStyle] = useState(current?.style ?? BUILTIN);
   const [browse, setBrowse] = useState(false);
   const [q, setQ] = useState("");
@@ -789,9 +1058,8 @@ function PlaceDialog({
         : source === "copy"
           ? { copyOf: pick!, name }
           : { type: placing.type, name }),
-      zone,
       style: style === BUILTIN ? undefined : style,
-      at: placing.at,
+      to: { ...placing.to, zone },
       replace: placing.replace,
     });
     setBusy(false);
@@ -894,7 +1162,7 @@ function PlaceDialog({
           </Card>
         )}
         <Group grow align="flex-end">
-          {placing.replace === undefined && (
+          {anywhere && (
             <Select
               label={t("zone")}
               data={zones.map((z) => ({ value: z.name, label: `${z.label} (${z.name})` }))}

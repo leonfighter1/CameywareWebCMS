@@ -88,6 +88,8 @@ export interface Block {
   template?: string;
   /** The zone of the page's layout it stands in (layouts.ts); none: the layout's main zone. */
   zone?: string;
+  /** The row it stands in: next to the blocks before it with the same key (layouts.ts `rowsOf`); none: a row alone. */
+  row?: string;
   data: Record<string, unknown>;
 }
 
@@ -120,7 +122,7 @@ export interface Page {
   /** Made before layouts: roomy chose 首页; the width is the same for every page now. */
   width?: "normal" | "narrow";
   spacing?: "compact" | "roomy";
-  /** Its components in order, each in its zone with its style. */
+  /** Its components in order, each in its zone and row with its style; one may stand on a page more than once. */
   blocks: Block[];
 }
 

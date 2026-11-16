@@ -24,8 +24,10 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
    `npm run sync` here. A template (组件样式, S3) is data too: markup the website's `src/cms/template.ts` defines and its
    `template-view.tsx` draws; this CMS checks it with that file's `checkTemplate`, never a grammar of its own. A page
    layout (S4) likewise: the built-ins and their zones are the website's `src/cms/layouts.ts`; a CMS layout is template
-   markup with `Zone` elements (`checkTemplate(…, { layout: true })`). A page's blocks are placements `{id, zone, style?}`
-   (`src/lib/pages.ts`): the style belongs to the place on the page, never to the component.
+   markup with `Zone` elements (`checkTemplate(…, { layout: true })`). A page's blocks are placements
+   `{id, zone, row?, style?}` (`src/lib/pages.ts`): the style belongs to the place on the page, never to the component;
+   placements next to each other with one row key stand side by side (the website's `rowsOf`; S5). A row keeps no
+   number: every change to rows goes through `src/lib/rows.ts`, never index arithmetic of its own.
 2. **One source for each fact.** `src/generated` comes from `npm run sync` (the website's content model, catalog and
    template markup, the layouts, 禄命秘解's `config/addresses.json`); never edit it by hand. The 繁體 conversion has one home (`src/lib/hant.ts`).
 3. **Its own database** (the owner, 2026-11-15): PGlite in `data/` (git-ignored), never 禄命秘解's. One process opens it:
@@ -57,7 +59,7 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
 ## Map
 
 - `src/lib`: the database (`db.ts`), the catalog's check, the working copy (`store.ts`, templates and layouts included),
-  placements and migration 4's page upgrade (`pages.ts`), files'
+  placements and migration 4's page upgrade (`pages.ts`), a page's rows (`rows.ts`), files'
   states (`files.ts`), resource bundles (`bundles.ts`, migration 3's merge), the workflow's steps and versions
   (`workflow.ts`), releases, environments and deployments (`releases.ts`), deploying (`deploy.ts`), download and upload
   (`transfer.ts`), sign-in (`auth.ts`), the first content (`seed.ts`), the two languages (`words.ts`), what pages hand

@@ -88,6 +88,7 @@ export default async function PageEditorPage({ params }: { params: Promise<{ id:
           return {
             id: b.id,
             zone: b.zone,
+            row: b.row,
             style: b.style,
             type: c?.type ?? "",
             label: c ? typeName(c.type) : "?",
