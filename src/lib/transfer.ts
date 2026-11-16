@@ -8,7 +8,8 @@
  */
 import type { PGlite } from "@electric-sql/pglite";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
-import { both, check, checkBlock, GLOBALS } from "./catalog";
+import { bundleLabel, bundleOf } from "./bundles";
+import { both, check, checkBlock, GLOBALS, TYPES } from "./catalog";
 import type { Db } from "./db";
 import { fileStates, type Item, take } from "./files";
 import {
@@ -16,24 +17,37 @@ import {
   componentState,
   createComponent,
   createPage,
+  createTemplate,
   getComponent,
   getGlobal,
   getPage,
+  getTemplate,
   type Kind,
   listGlobals,
   listPages,
+  listTemplates,
   listTexts,
   newId,
   pageState,
   saveComponent,
   saveGlobal,
   savePage,
+  saveTemplate,
   saveText,
+  templateProblems,
 } from "./store";
 import { type Both, CmsError, type Detail, msg } from "./words";
 import { isL10n, isPagePath, type L10n, LOCALES } from "@/generated/model";
 
-type BlockDoc = { id?: string; type: string; name?: string; data: Record<string, unknown> };
+/** A block; [template] names the one that draws it ("" its type's own view; left out, as it is). */
+type BlockDoc = {
+  id?: string;
+  type: string;
+  name?: string;
+  template?: string;
+  data: Record<string, unknown>;
+};
+type TemplateDoc = { id?: string; type: string; name: string; markup: string };
 type PageDoc = {
   page: {
     id?: string;
@@ -49,12 +63,14 @@ type PageDoc = {
 export type Doc =
   | ({ cms: 1; kind: "page" } & PageDoc)
   | { cms: 1; kind: "component"; component: BlockDoc }
+  | { cms: 1; kind: "template"; template: TemplateDoc }
   | { cms: 1; kind: "global"; key: string; data: Record<string, unknown> }
   | { cms: 1; kind: "texts"; texts: Record<string, L10n> }
   | {
       cms: 1;
       kind: "site";
       pages: PageDoc[];
+      templates?: TemplateDoc[];
       globals: Record<string, Record<string, unknown>>;
       texts: Record<string, L10n>;
     };
@@ -67,7 +83,7 @@ async function pageDoc(db: Db, id: string): Promise<PageDoc> {
   const blocks: BlockDoc[] = [];
   for (const b of p.blocks) {
     const c = await getComponent(db, b);
-    if (c && !c.deleted) blocks.push({ id: c.id, type: c.type, name: c.name, data: c.data });
+    if (c && !c.deleted) blocks.push({ id: c.id, ...componentState(c) });
   }
   const s = pageState(p);
   return {
@@ -91,17 +107,29 @@ export async function exportDoc(db: Db, kind: Kind | "texts" | "site", id?: stri
     if (!c || c.deleted) throw new CmsError("errors.noBlock");
     return { cms: 1, kind: "component", component: { id: c.id, ...componentState(c) } };
   }
+  if (kind === "template") {
+    const t = await getTemplate(db, id!);
+    if (!t || t.deleted) throw new CmsError("errors.noTemplate", { id: id ?? "" });
+    return { cms: 1, kind: "template", template: { id: t.id, type: t.type, name: t.name, markup: t.markup } };
+  }
   if (kind === "global") {
     const g = await getGlobal(db, id!);
     if (!g) throw new CmsError("errors.noGlobal", { key: id ?? "" });
     return { cms: 1, kind: "global", key: g.key, data: g.data };
   }
-  const texts = Object.fromEntries((await listTexts(db)).map((t) => [t.key, t.value]));
-  if (kind === "texts" || kind === "text") return { cms: 1, kind: "texts", texts };
+  const all = await listTexts(db);
+  // One bundle's texts, or every one.
+  const texts = Object.fromEntries(
+    all.filter((t) => kind !== "bundle" || bundleOf(t.key) === id).map((t) => [t.key, t.value]),
+  );
+  if (kind === "texts" || kind === "bundle") return { cms: 1, kind: "texts", texts };
   const pages: PageDoc[] = [];
   for (const p of await listPages(db)) if (!p.deleted) pages.push(await pageDoc(db, p.id));
+  const templates = (await listTemplates(db))
+    .filter((t) => !t.deleted)
+    .map((t) => ({ id: t.id, type: t.type, name: t.name, markup: t.markup }));
   const globals = Object.fromEntries((await listGlobals(db)).map((g) => [g.key, g.data]));
-  return { cms: 1, kind: "site", pages, globals, texts };
+  return { cms: 1, kind: "site", pages, templates, globals, texts };
 }
 
 // ---- XML ---------------------------------------------------------------------------------------------------
@@ -138,8 +166,16 @@ const attrs = (o: Record<string, unknown>) =>
   );
 
 function blockXml(b: BlockDoc) {
-  return { ...attrs({ id: b.id, type: b.type, name: b.name }), ...(toXmlValue(b.data) as object) };
+  return {
+    ...attrs({ id: b.id, type: b.type, name: b.name, template: b.template }),
+    ...(toXmlValue(b.data) as object),
+  };
 }
+
+const templateXml = (t: TemplateDoc) => ({
+  ...attrs({ id: t.id, type: t.type, name: t.name }),
+  markup: t.markup,
+});
 
 function pageXml(p: PageDoc) {
   const { id, path, status, width, spacing, title, description } = p.page;
@@ -159,11 +195,13 @@ export function toXml(doc: Doc): string {
   const root: Record<string, unknown> = attrs({ version: 1, kind: doc.kind });
   if (doc.kind === "page") root.page = pageXml(doc);
   else if (doc.kind === "component") root.block = blockXml(doc.component);
+  else if (doc.kind === "template") root.template = templateXml(doc.template);
   else if (doc.kind === "global")
     root.global = { ...attrs({ key: doc.key }), ...(toXmlValue(doc.data) as object) };
   else if (doc.kind === "texts") root.texts = textsXml(doc.texts);
   else {
     root.page = doc.pages.map(pageXml);
+    root.template = (doc.templates ?? []).map(templateXml);
     root.global = Object.entries(doc.globals).map(([key, data]) => ({
       ...attrs({ key }),
       ...(toXmlValue(data) as object),
@@ -189,9 +227,17 @@ function blockFromXml(n: Record<string, unknown>): BlockDoc {
     id: n[`${A}id`] as string | undefined,
     type: String(n[`${A}type`] ?? ""),
     name: n[`${A}name`] as string | undefined,
+    template: n[`${A}template`] as string | undefined,
     data: data && typeof data === "object" ? data : {},
   };
 }
+
+const templateFromXml = (n: Record<string, unknown>): TemplateDoc => ({
+  id: n[`${A}id`] as string | undefined,
+  type: String(n[`${A}type`] ?? ""),
+  name: String(n[`${A}name`] ?? ""),
+  markup: String(fromXmlValue(n.markup) ?? ""),
+});
 
 function pageFromXml(n: Record<string, unknown>): PageDoc {
   return {
@@ -228,7 +274,9 @@ export function fromXml(xml: string): Doc {
     // A list by its place in the document, never by its name alone: a field may be called text or page too.
     isArray: (name, jpath) =>
       name === "item" ||
-      ["cms.page", "cms.page.block", "cms.block", "cms.global", "cms.texts.text"].includes(String(jpath)),
+      ["cms.page", "cms.page.block", "cms.block", "cms.template", "cms.global", "cms.texts.text"].includes(
+        String(jpath),
+      ),
   });
   let tree: Record<string, unknown>;
   try {
@@ -248,6 +296,11 @@ export function fromXml(xml: string): Doc {
     const b = many(root.block)[0] as Record<string, unknown> | undefined;
     if (!b) throw new CmsError("errors.xmlMissing", { tag: "<block>" });
     return { cms: 1, kind: "component", component: blockFromXml(b) };
+  }
+  if (kind === "template") {
+    const t = many(root.template)[0] as Record<string, unknown> | undefined;
+    if (!t) throw new CmsError("errors.xmlMissing", { tag: "<template>" });
+    return { cms: 1, kind: "template", template: templateFromXml(t) };
   }
   const globalOf = (g: Record<string, unknown>) =>
     [
@@ -269,6 +322,7 @@ export function fromXml(xml: string): Doc {
       cms: 1,
       kind: "site",
       pages: many(root.page).map((p) => pageFromXml(p as Record<string, unknown>)),
+      templates: many(root.template).map((t) => templateFromXml(t as Record<string, unknown>)),
       globals: Object.fromEntries(many(root.global).map((g) => globalOf(g as Record<string, unknown>))),
       texts: textsFromXml(root.texts),
     };
@@ -330,9 +384,43 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
     return false;
   };
 
+  /** The templates there will be, by id, with their type: the CMS's, and those this upload makes. */
+  const templates = new Map(
+    (await listTemplates(db)).filter((t) => !t.deleted).map((t) => [t.id, t.type] as const),
+  );
+
+  const template = async (t: TemplateDoc) => {
+    const where = msg("check.atTemplate", { name: t.name || t.id || "" });
+    if (!TYPES[t.type]) return void errors.push(at(where, msg("errors.noType", { type: t.type })));
+    errors.push(...(await templateProblems(db, t.type, t.markup ?? "")).map((e) => at(where, e)));
+    const existing = t.id ? await getTemplate(db, t.id) : undefined;
+    if (existing && !existing.deleted && existing.type === t.type) {
+      const unchanged = existing.name === t.name && existing.markup === t.markup;
+      const label = same(t.name || existing.id);
+      const take = !unchanged && mayChange("template", existing.id, label);
+      items.push({
+        kind: "template",
+        id: existing.id,
+        label,
+        action: unchanged ? "unchanged" : "update",
+        take,
+      });
+      if (!unchanged)
+        writes.push((tx) => saveTemplate(tx, existing.id, { name: t.name, markup: t.markup }, by));
+      return;
+    }
+    const id = existing ? newId("tpl") : (t.id ?? newId("tpl"));
+    if (existing) notes.push(msg("notes.templateCopied", { from: t.id ?? "", to: id }));
+    items.push({ kind: "template", id, label: same(t.name || id), action: "create" });
+    templates.set(id, t.type);
+    writes.push((tx) => createTemplate(tx, t.type, t.name, t.markup, by, id).then(() => undefined));
+  };
+
   const block = async (b: BlockDoc, copy: boolean, where: Detail): Promise<string> => {
     const checked = checkBlock(b.type, b.data);
     errors.push(...checked.errors.map((e) => at(where, e)));
+    if (b.template && templates.get(b.template) !== b.type)
+      errors.push(at(where, msg("check.noTemplate", { id: b.template })));
     const existing = b.id ? await getComponent(db, b.id) : undefined;
     if (existing && !existing.deleted && !copy) {
       if (existing.type !== b.type)
@@ -342,7 +430,8 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
       // Both as the check leaves them (a field left out is its default), so what is the same reads the same.
       const unchanged =
         canonical(checkBlock(existing.type, existing.data).value) === canonical(checked.value) &&
-        existing.name === (b.name ?? existing.name);
+        existing.name === (b.name ?? existing.name) &&
+        (b.template === undefined || (existing.template ?? "") === b.template);
       const label = same(b.name || existing.id);
       const take = !unchanged && mayChange("component", existing.id, label);
       items.push({
@@ -353,15 +442,18 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
         take,
       });
       if (!unchanged)
-        writes.push((tx) => saveComponent(tx, existing.id, { name: b.name, data: checked.value }, by));
+        writes.push((tx) =>
+          saveComponent(tx, existing.id, { name: b.name, data: checked.value, template: b.template }, by),
+        );
       return existing.id;
     }
     const id = existing ? newId(b.type) : (b.id ?? newId(b.type));
     if (existing) notes.push(msg("notes.blockCopied", { from: b.id ?? "", to: id }));
     items.push({ kind: "component", id, label: same(b.name || id), action: "create" });
-    writes.push((tx) =>
-      createComponent(tx, b.type, b.name ?? "", by, checked.value, id).then(() => undefined),
-    );
+    writes.push(async (tx) => {
+      await createComponent(tx, b.type, b.name ?? "", by, checked.value, id);
+      if (b.template) await saveComponent(tx, id, { template: b.template }, by);
+    });
     return id;
   };
 
@@ -428,32 +520,43 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
     if (!unchanged) writes.push((tx) => saveGlobal(tx, key, checked.value, by));
   };
 
+  /** The texts by their bundle: a bundle new, changed or the same; one that changes must be yours or nobody's. */
   const texts = async (all: Record<string, L10n>) => {
     const now = new Map((await listTexts(db)).map((t) => [t.key, t.value]));
+    const bundles = new Map<string, { create: boolean; changed: boolean }>();
     for (const [key, value] of Object.entries(all)) {
       if (!isL10n(value) && Object.keys(value ?? {}).length) {
         errors.push(msg("errors.importTextShape", { key }));
         continue;
       }
+      const ns = bundleOf(key);
+      const b = bundles.get(ns) ?? { create: !states.has(`bundle:${ns}`), changed: false };
+      bundles.set(ns, b);
       const merged = { ...(now.get(key) ?? {}), ...value };
-      const unchanged = now.has(key) && canonical(now.get(key)) === canonical(merged);
-      const take = now.has(key) && !unchanged && mayChange("text", key, same(key));
+      if (now.has(key) && canonical(now.get(key)) === canonical(merged)) continue;
+      b.changed = true;
+      writes.push((tx) => saveText(tx, key, merged, by));
+    }
+    for (const [ns, b] of bundles) {
+      const label = bundleLabel(ns);
+      const take = !b.create && b.changed && mayChange("bundle", ns, label);
       items.push({
-        kind: "text",
-        id: key,
-        label: same(key),
-        action: !now.has(key) ? "create" : unchanged ? "unchanged" : "update",
+        kind: "bundle",
+        id: ns,
+        label,
+        action: b.create ? "create" : b.changed ? "update" : "unchanged",
         take,
       });
-      if (!unchanged) writes.push((tx) => saveText(tx, key, merged, by));
     }
   };
 
   if (doc.kind === "page") await page(doc);
   else if (doc.kind === "component") await block(doc.component, false, msg("check.atBlock"));
+  else if (doc.kind === "template") await template(doc.template);
   else if (doc.kind === "global") await global(doc.key, doc.data);
   else if (doc.kind === "texts") await texts(doc.texts ?? {});
   else if (doc.kind === "site") {
+    for (const t of doc.templates ?? []) await template(t);
     for (const p of doc.pages ?? []) await page(p);
     for (const [k, v] of Object.entries(doc.globals ?? {})) await global(k, v);
     await texts(doc.texts ?? {});

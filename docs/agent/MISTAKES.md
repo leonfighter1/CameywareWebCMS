@@ -2,6 +2,22 @@
 
 Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 
+## Rules (read before every task)
+
+1. A chain of if / else if whose branch is a loop gets braces on every branch.
+2. Decide an XML list by its path in the document; test every round trip with the real catalog's fields.
+3. A package whose scripts use top-level await is `"type": "module"`.
+4. In a server component (no "use client"), use Mantine's named parts, never `X.Y`.
+5. Spawn an .exe without a shell; when a .cmd needs one, give it no argument with a space. Test a git step against a bare
+   repository, never against GitHub.
+6. In a server component, no component as a prop (tests/server-components.test.ts). After a change, open every route.
+7. Ignore an output folder from the root (`/name/`), never by a bare `name/`; check git status lists a new folder's files.
+8. After stopping the CMS, check that 8790 and 8791 are free; stop what still holds them by the port's owner.
+9. Never round-trip a source file through Get-Content / Set-Content in Windows PowerShell: rename with the Edit tool or
+   node; if it happens, undo it with the 1252 round trip, not git checkout.
+
+## Log
+
 ## 1. An else after a for-if binds to the if inside the loop
 
 - **Symptom:** every text in languages was refused as 「应该是各种语言的文字」.
@@ -72,3 +88,14 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 - **Fix:** found by port (`Get-NetTCPConnection -LocalPort 8790,8791`) and stopped by process id.
 - **Rule:** after stopping the CMS, check that 8790 and 8791 are free before building or touching `data/`; stop what
   still holds them by the port's owner.
+
+## 9. Get-Content | Set-Content garbled a UTF-8 source file
+
+- **Symptom:** after a rename with `(Get-Content f) -replace … | Set-Content -Encoding utf8`, every Chinese comment in
+  `src/lib/workflow.ts` read as mojibake (丢弃 → ä¸¢å¼ƒ) and the file began with a BOM.
+- **Cause:** Windows PowerShell 5.1's Get-Content reads a file without a BOM in the ANSI code page (1252); Set-Content
+  -Encoding utf8 writes a BOM.
+- **Fix:** reversed byte for byte (`[Text.Encoding]::GetEncoding(1252).GetBytes`, then `UTF8.GetString`), written without
+  a BOM; the diff's non-ASCII lines were then only the intended ones.
+- **Rule:** never round-trip a source file through Get-Content / Set-Content in Windows PowerShell: rename with the Edit
+  tool (replace_all) or node. If it happens, undo it with the 1252 round trip, not git checkout (that loses the work).

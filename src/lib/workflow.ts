@@ -19,7 +19,16 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type { Db } from "./db";
 import { deploy } from "./deploy";
-import { fileStates, type FileRow, type Item, keyOf, mustHold, mustHoldAll, type Stage } from "./files";
+import {
+  fileStates,
+  type FileRow,
+  type Item,
+  KINDS,
+  keyOf,
+  mustHold,
+  mustHoldAll,
+  type Stage,
+} from "./files";
 import {
   busyItems,
   createRelease,
@@ -35,7 +44,9 @@ import {
   canonical,
   type Change,
   changeOf,
+  drawnBy,
   forget,
+  getComponent,
   getPage,
   type Kind,
   revisionsById,
@@ -59,6 +70,11 @@ export type FileInfo = FileRow & {
   busy: boolean;
   /** Its check-in, while in the workflow. */
   checkin?: { id: number; message: string; author: string; at: string };
+  /** When its working copy was saved last, and by whom. */
+  at: string;
+  by: string;
+  /** Deleted in the working copy (a page, a block or a template marked so). */
+  deleted: boolean;
 };
 
 /** Every file with its state, its name and its change: what 我的文件, the workflow and the central page list. */
@@ -83,11 +99,13 @@ export async function files(db: Pg): Promise<FileInfo[]> {
       change: changeOf(w, prod.get(key)),
       busy: busy.has(key),
       checkin: c && { id: Number(c.id), message: c.message, author: c.author, at: c.created_at },
+      at: w.at,
+      by: w.by,
+      deleted: w.deleted,
     });
   }
-  const order: Kind[] = ["page", "component", "global", "text"];
   return out.sort(
-    (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.label.zh.localeCompare(b.label.zh),
+    (a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || a.label.zh.localeCompare(b.label.zh),
   );
 }
 
@@ -130,9 +148,22 @@ async function newBlocksOf(db: Pg, pageId: string, states: Map<string, FileRow>)
   });
 }
 
+/** What [i] can't be shown without that production lacks: a page's new blocks, a block's new template. */
+async function newPartsOf(db: Pg, i: Item, states: Map<string, FileRow>): Promise<Item[]> {
+  if (i.kind === "page")
+    return (await newBlocksOf(db, i.id, states)).map((id) => ({ kind: "component" as const, id }));
+  if (i.kind !== "component") return [];
+  const template = (await getComponent(db, i.id))?.template;
+  if (!template) return [];
+  const prodId = states.get(`template:${template}`)?.prod_revision_id;
+  const prod = prodId ? (await revisionsById(db, [prodId])).get(`template:${template}`) : undefined;
+  return !prod || prod.deleted ? [{ kind: "template", id: template }] : [];
+}
+
 /**
  * 签入: [items], every one checked out by [author], into the workflow at 已签入 with [message]. A page brings the new
- * blocks on it that are also [author]'s; a new block someone else holds, or one not coming along, refuses it.
+ * blocks on it, and a block the new template that draws it, that are also [author]'s; a new one someone else holds, or
+ * one not coming along, refuses it.
  */
 export async function checkIn(db: Pg, items: Item[], message: string, author: string): Promise<number> {
   if (!message.trim()) throw new CmsError("errors.checkinMessage");
@@ -140,14 +171,20 @@ export async function checkIn(db: Pg, items: Item[], message: string, author: st
   const states = await fileStates(db);
   const wanted = new Map(items.map((i) => [keyOf(i), i]));
   const problems: Detail[] = [];
-  for (const i of items) {
-    if (i.kind !== "page") continue;
-    for (const b of await newBlocksOf(db, i.id, states)) {
-      const f = states.get(`component:${b}`);
-      if (wanted.has(`component:${b}`) || f?.status === "in_workflow") continue;
-      if (f?.status === "checked_out" && f.owner === author)
-        wanted.set(`component:${b}`, { kind: "component", id: b });
-      else problems.push(msg("errors.blockNotComing", { block: b, owner: f?.owner ?? "—" }));
+  const queue = [...items];
+  while (queue.length) {
+    for (const part of await newPartsOf(db, queue.shift()!, states)) {
+      const f = states.get(keyOf(part));
+      if (wanted.has(keyOf(part)) || f?.status === "in_workflow") continue;
+      if (f?.status === "checked_out" && f.owner === author) {
+        wanted.set(keyOf(part), part);
+        queue.push(part);
+      } else
+        problems.push(
+          part.kind === "template"
+            ? msg("errors.templateNotComing", { template: part.id, owner: f?.owner ?? "—" })
+            : msg("errors.blockNotComing", { block: part.id, owner: f?.owner ?? "—" }),
+        );
     }
   }
   if (problems.length) throw new CmsError("errors.checkinIncomplete", undefined, problems);
@@ -199,24 +236,31 @@ async function mustBeAt(db: Pg, items: Item[], stage: Stage) {
   return states;
 }
 
-/** [items] with the new blocks of their pages that wait at [stage] too: a page never goes on without them. */
-async function withTheirBlocks(db: Pg, items: Item[], stage: Stage, states: Map<string, FileRow>) {
+/**
+ * [items] with the new parts that wait at [stage] too (a page's new blocks, their new templates): a page never goes on
+ * without them.
+ */
+async function withTheirParts(db: Pg, items: Item[], stage: Stage, states: Map<string, FileRow>) {
   const out = new Map(items.map((i) => [keyOf(i), i]));
-  for (const i of items) {
-    if (i.kind !== "page") continue;
-    for (const b of await newBlocksOf(db, i.id, states)) {
-      const f = states.get(`component:${b}`);
-      if (f?.status === "in_workflow" && f.stage === stage)
-        out.set(`component:${b}`, { kind: "component", id: b });
+  const queue = [...items];
+  while (queue.length)
+    for (const part of await newPartsOf(db, queue.shift()!, states)) {
+      const f = states.get(keyOf(part));
+      if (!out.has(keyOf(part)) && f?.status === "in_workflow" && f.stage === stage) {
+        out.set(keyOf(part), part);
+        queue.push(part);
+      }
     }
-  }
   return [...out.values()];
 }
 
-/** 终止 (W1): back to whoever checked them in, checked out, their changes kept. */
+/**
+ * 终止 (W1): back to whoever checked them in, checked out, their changes kept; the new parts checked in with them (a
+ * page's new blocks, a block's new template) too.
+ */
 export async function terminate(db: Pg, items: Item[]) {
-  await mustBeAt(db, items, "checked_in");
-  for (const i of items)
+  const states = await mustBeAt(db, items, "checked_in");
+  for (const i of await withTheirParts(db, items, "checked_in", states))
     await db.query(
       `update items set status = 'checked_out', stage = null, revision_id = null, checkin_id = null, since = now()
         where kind = $1 and id = $2`,
@@ -242,7 +286,7 @@ async function moveFrom(db: Pg, items: Item[], stage: Stage, set: string) {
 /** 推到预览站: [items] at 已签入 built into preview with production and what is there already; at 预览站 once built. */
 export async function toPreview(db: Pg, items: Item[], by: string, note = "", runner?: Runner) {
   const states = await mustBeAt(db, items, "checked_in");
-  const moving = await withTheirBlocks(db, items, "checked_in", states);
+  const moving = await withTheirParts(db, items, "checked_in", states);
   const chosen = inList(moving);
   const release = await createRelease(db, by, note, (f) => f.stage === "preview" || chosen(f));
   const { id, done } = await deploy("preview", release, by, {
@@ -254,18 +298,22 @@ export async function toPreview(db: Pg, items: Item[], by: string, note = "", ru
   return { release, deployment: id, items: moving, done };
 }
 
-/** 退回签入 (W2): preview built again without [items]; at 已签入 again once built, still locked. */
+/**
+ * 退回签入 (W2): preview built again without [items] and the new parts that went there with them; at 已签入 again once
+ * built, still locked.
+ */
 export async function backToCheckIn(db: Pg, items: Item[], by: string, runner?: Runner) {
-  await mustBeAt(db, items, "preview");
-  const leaving = inList(items);
+  const states = await mustBeAt(db, items, "preview");
+  const moving = await withTheirParts(db, items, "preview", states);
+  const leaving = inList(moving);
   const release = await createRelease(db, by, "", (f) => f.stage === "preview" && !leaving(f));
   const { id, done } = await deploy("preview", release, by, {
     action: "back",
-    items,
+    items: moving,
     runner,
-    onSuccess: (pg) => moveFrom(pg, items, "preview", `stage = 'checked_in'`),
+    onSuccess: (pg) => moveFrom(pg, moving, "preview", `stage = 'checked_in'`),
   });
-  return { release, deployment: id, done };
+  return { release, deployment: id, items: moving, done };
 }
 
 /**
@@ -274,7 +322,7 @@ export async function backToCheckIn(db: Pg, items: Item[], by: string, runner?: 
  */
 export async function toProduction(db: Pg, items: Item[], by: string, note = "", runner?: Runner) {
   const states = await mustBeAt(db, items, "preview");
-  const moving = await withTheirBlocks(db, items, "preview", states);
+  const moving = await withTheirParts(db, items, "preview", states);
   const release = await createRelease(db, by, note, inList(moving));
   const { id, done } = await deploy("production", release, by, {
     action: "production",
@@ -351,7 +399,7 @@ export async function rollbackProduction(db: Pg, release: number, by: string, ru
 
 /**
  * 丢弃: [items] (yours) back to production's version, nobody's; one never published goes. A new block still on one of
- * your pages refuses it, unless that page goes too.
+ * your pages, or a new template still drawing a block, refuses it, unless that page or block goes back too.
  */
 export async function discard(db: Pg, items: Item[], by: string) {
   await mustHoldAll(db, items, by);
@@ -363,8 +411,7 @@ export async function discard(db: Pg, items: Item[], by: string) {
       return p ? [p] : [];
     }),
   );
-  const order: Kind[] = ["page", "component", "global", "text"];
-  const sorted = [...items].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+  const sorted = [...items].sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind));
   await db.transaction(async (tx) => {
     for (const i of sorted) {
       const r = prod.get(keyOf(i));
@@ -376,6 +423,15 @@ export async function discard(db: Pg, items: Item[], by: string) {
               "errors.blockInUse",
               undefined,
               pages.map((p) => msg("check.usedOn", { path: p.path })),
+            );
+        }
+        if (i.kind === "template") {
+          const blocks = await drawnBy(tx, i.id);
+          if (blocks.length)
+            throw new CmsError(
+              "errors.templateInUse",
+              undefined,
+              blocks.map((b) => msg("check.drawsBlock", { label: b.name || b.id })),
             );
         }
         await forget(tx, i.kind, i.id);
@@ -433,19 +489,30 @@ export async function versions(db: Pg, kind: Kind, id: string): Promise<Version[
   });
 }
 
-/** A version of a file (yours) as its draft again, for the workflow. Returns the blocks it names that are gone. */
+/**
+ * A version of a file (yours) as its draft again, for the workflow. Returns what it names that is gone: a page's blocks,
+ * a block's template.
+ */
 export async function restoreVersion(db: Pg, kind: Kind, id: string, revision: number, by: string) {
   await mustHold(db, kind, id, by);
   const r = (await revisionsById(db, [revision])).get(`${kind}:${id}`);
   if (!r) throw new CmsError("errors.noVersion", { id: revision });
   await writeWorking(db, kind, id, r.deleted ? null : r.data, by);
-  if (kind !== "page" || r.deleted) return [];
-  const blocks = (r.data as { blocks: string[] }).blocks;
+  if (r.deleted || (kind !== "page" && kind !== "component")) return [];
+  const template = (r.data as { template?: string }).template;
+  const names =
+    kind === "page"
+      ? (r.data as { blocks: string[] }).blocks.map((b) => `component:${b}`)
+      : template
+        ? [`template:${template}`]
+        : [];
   const work = await workingStates(db);
-  return blocks.filter((b) => {
-    const c = work.get(`component:${b}`);
-    return !c || c.deleted;
-  });
+  return names
+    .filter((k) => {
+      const w = work.get(k);
+      return !w || w.deleted;
+    })
+    .map((k) => k.slice(k.indexOf(":") + 1));
 }
 
 /** The first content's release, recorded on both sites (they show it). */

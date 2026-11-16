@@ -5,7 +5,7 @@ import { descriptionIn, labelIn } from "@/lib/labels";
 import { previewBase } from "@/lib/hosts";
 import { fileViews, versionView } from "@/lib/present";
 import { database, host, language, requireUser } from "@/lib/server";
-import { getComponent, getGlobal, getPage, usedOn } from "@/lib/store";
+import { getComponent, getGlobal, getPage, listTemplates, usedOn } from "@/lib/store";
 import { files, versions } from "@/lib/workflow";
 import { ComponentEditor } from "./editor";
 
@@ -24,11 +24,12 @@ export default async function ComponentPage({
   const pg = await database();
   const c = await getComponent(pg, id);
   if (!c) notFound();
-  const [pages, all, past, works] = await Promise.all([
+  const [pages, all, past, works, templates] = await Promise.all([
     usedOn(pg, id),
     files(pg),
     versions(pg, "component", id),
     getGlobal(pg, "works"),
+    listTemplates(pg, c.type),
   ]);
   const file = fileViews(all, lang)[`component:${id}`];
   if (!file) notFound();
@@ -48,7 +49,15 @@ export default async function ComponentPage({
         me={user.login}
         file={file}
         versions={past.map((v) => versionView(v, lang))}
-        component={{ id: c.id, type: c.type, name: c.name, data: c.data, deleted: c.deleted }}
+        component={{
+          id: c.id,
+          type: c.type,
+          name: c.name,
+          template: c.template,
+          data: c.data,
+          deleted: c.deleted,
+        }}
+        templates={templates.filter((x) => !x.deleted).map((x) => ({ id: x.id, name: x.name }))}
         typeLabel={def ? labelIn(def, lang) : c.type}
         typeHelp={def ? descriptionIn(def, lang) : ""}
         fields={fieldsOf(c.type)}

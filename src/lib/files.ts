@@ -1,7 +1,8 @@
 /**
  * Files and their states (the owner, 2026-11-15: 「每个file有 没有被touch的情况，这样editor可以进行拿取操作，一旦拿取，
  * file/component就进入checkout 状态，此时如果另一个人想要拿回去可以直接take over， 但是一旦当文件进入签入(added to
- * workflow)状态，file就被lock住了」). Every page, block, global and UI text is a file:
+ * workflow)状态，file就被lock住了」). Every page, block, template (component style), global and resource bundle (the UI
+ * texts of a namespace, bundles.ts) is a file:
  *
  *   available    未拿取: nobody's; anyone may take it.
  *   checked_out  拿取: one editor's; only they change it; another may take it over.
@@ -12,7 +13,7 @@
 import type { Db } from "./db";
 import { CmsError, type Msg, msg } from "./words";
 
-export type Kind = "page" | "component" | "global" | "text";
+export type Kind = "page" | "component" | "template" | "global" | "bundle";
 export type Item = { kind: Kind; id: string };
 export type Status = "available" | "checked_out" | "in_workflow";
 export type Stage = "checked_in" | "preview";
@@ -30,7 +31,8 @@ export interface FileRow {
 }
 
 export const keyOf = (i: Item) => `${i.kind}:${i.id}`;
-export const KINDS: Kind[] = ["page", "component", "global", "text"];
+/** The kinds in the order lists show them (and a discard undoes them: a page before its blocks, a block before its template). */
+export const KINDS: Kind[] = ["page", "component", "template", "global", "bundle"];
 
 const numbers = (r: FileRow): FileRow => ({
   ...r,
@@ -64,7 +66,7 @@ export async function mustHold(db: Db, kind: Kind, id: string, by: string) {
   if (why) throw new CmsError(why.key, why.values);
 }
 
-/** A new file (a page, a block, a text made now): checked out to whoever made it. */
+/** A new file (a page, a block, a template, a bundle made now): checked out to whoever made it. */
 export async function claimNew(db: Db, kind: Kind, id: string, by: string) {
   await db.query(
     `insert into items (kind, id, status, owner) values ($1, $2, 'checked_out', $3)

@@ -1,15 +1,27 @@
 /**
- * The working copy: what the editors save (drafts) of the pages, components (the blocks), globals and UI texts. A page
- * lists its blocks by component id, so a component can stand on more than one page; the snapshot (`buildContent`) puts
- * them in place, as the website reads them. Every save is refused unless the file is checked out by whoever saves it
- * (files.ts); a file made now is theirs.
+ * The working copy: what the editors save (drafts) of the pages, components (the blocks), templates (the component
+ * styles), globals and UI texts (filed by their bundle). A page lists its blocks by component id, so a component can
+ * stand on more than one page; a block names its template, or none for its type's own view. The snapshot
+ * (`buildContent`) puts them in place, as the website reads them. Every save is refused unless the file is checked out by
+ * whoever saves it (files.ts); a file made now is theirs.
  */
 import { randomUUID } from "node:crypto";
-import { both, checkBlock, check, defaults, fieldsOf, GLOBALS, TYPES } from "./catalog";
+import { bundleLabel, bundleOf, bundleState } from "./bundles";
+import { both, checkBlock, check, defaults, fieldsOf, GLOBALS, ICONS, TYPES } from "./catalog";
 import type { Db } from "./db";
-import { claimNew, fileStates, type FileRow, type Kind, mustHold } from "./files";
+import { claimNew, fileStates, type FileRow, KINDS, type Kind, mustHold } from "./files";
+import { canonical } from "./json";
 import { type Both, CmsError, msg } from "./words";
-import { GLOBAL_KEYS, isPagePath, type L10n, LOCALES, type Page, type SiteContent } from "@/generated/model";
+import {
+  GLOBAL_KEYS,
+  isPagePath,
+  type L10n,
+  LOCALES,
+  type Page,
+  type SiteContent,
+  type Template,
+} from "@/generated/model";
+import { checkTemplate } from "@/generated/template";
 
 export type { Kind } from "./files";
 
@@ -31,7 +43,19 @@ export interface ComponentRow {
   id: string;
   type: string;
   name: string;
+  /** The template that draws it (templates.id), or none: its type's own view. */
+  template: string | null;
   data: Record<string, unknown>;
+  deleted: boolean;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface TemplateRow {
+  id: string;
+  type: string;
+  name: string;
+  markup: string;
   deleted: boolean;
   updated_at: string;
   updated_by: string;
@@ -51,17 +75,7 @@ export interface TextRow {
   updated_by: string;
 }
 
-/** JSON with every object's keys in order: what two states are compared by. */
-export function canonical(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
-  if (v && typeof v === "object")
-    return `{${Object.keys(v)
-      .sort()
-      .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
-      .map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`)
-      .join(",")}}`;
-  return JSON.stringify(v);
-}
+export { canonical };
 
 export const newId = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 
@@ -111,6 +125,31 @@ export async function listTexts(db: Db): Promise<TextRow[]> {
   return (await db.query<TextRow>(`select * from texts order by key`)).rows;
 }
 
+export async function listTemplates(db: Db, type?: string): Promise<TemplateRow[]> {
+  return (
+    await db.query<TemplateRow>(
+      type
+        ? `select * from templates where type = $1 order by name, id`
+        : `select * from templates order by type, name, id`,
+      type ? [type] : [],
+    )
+  ).rows;
+}
+
+export async function getTemplate(db: Db, id: string): Promise<TemplateRow | undefined> {
+  return (await db.query<TemplateRow>(`select * from templates where id = $1`, [id])).rows[0];
+}
+
+/** The blocks (not deleted) that [templateId] draws. */
+export async function drawnBy(db: Db, templateId: string): Promise<ComponentRow[]> {
+  return (
+    await db.query<ComponentRow>(
+      `select * from components where not deleted and template = $1 order by name, id`,
+      [templateId],
+    )
+  ).rows;
+}
+
 // ---- the state a file is checked in with ---------------------------------------------------------------------
 
 export const pageState = (p: PageRow) => ({
@@ -122,47 +161,93 @@ export const pageState = (p: PageRow) => ({
   spacing: p.spacing,
   blocks: p.blocks,
 });
-export const componentState = (c: ComponentRow) => ({ type: c.type, name: c.name, data: c.data });
+/** A block's state: its template only when it names one (a state checked in before templates reads the same). */
+export const componentState = (c: Pick<ComponentRow, "type" | "name" | "data" | "template">) => ({
+  type: c.type,
+  name: c.name,
+  ...(c.template ? { template: c.template } : {}),
+  data: c.data,
+});
+export const templateState = (t: TemplateRow): Template => ({ type: t.type, name: t.name, markup: t.markup });
 
-/** A component's name in both languages: its type's and its own. */
-const componentLabel = (c: { type: string; name: string; id: string }): Both => {
+/** A block's or a template's name in both languages: its type's and its own. */
+const typedLabel = (c: { type: string; name: string; id: string }): Both => {
   const t = both(TYPES[c.type], c.type);
   const own = c.name || c.id;
   return { zh: `${t.zh} · ${own}`, en: `${t.en} · ${own}` };
 };
 
-export type Working = { kind: Kind; id: string; state: unknown; deleted: boolean; label: Both };
+export type Working = {
+  kind: Kind;
+  id: string;
+  state: unknown;
+  deleted: boolean;
+  label: Both;
+  /** When it was saved last, and by whom. */
+  at: string;
+  by: string;
+};
 
 /** Every file of the working copy as it would be checked in: by `kind:id`, its state and whether it is deleted. */
 export async function workingStates(db: Db) {
   const out = new Map<string, Working>();
   const same = (s: string): Both => ({ zh: s, en: s });
+  const put = (w: Working) => out.set(`${w.kind}:${w.id}`, w);
   for (const p of await listPages(db))
-    out.set(`page:${p.id}`, {
+    put({
       kind: "page",
       id: p.id,
       state: pageState(p),
       deleted: p.deleted,
       label: same(p.path),
+      at: p.updated_at,
+      by: p.updated_by,
     });
   for (const c of await listComponents(db))
-    out.set(`component:${c.id}`, {
+    put({
       kind: "component",
       id: c.id,
       state: componentState(c),
       deleted: c.deleted,
-      label: componentLabel(c),
+      label: typedLabel(c),
+      at: c.updated_at,
+      by: c.updated_by,
+    });
+  for (const t of await listTemplates(db))
+    put({
+      kind: "template",
+      id: t.id,
+      state: templateState(t),
+      deleted: t.deleted,
+      label: typedLabel(t),
+      at: t.updated_at,
+      by: t.updated_by,
     });
   for (const g of await listGlobals(db))
-    out.set(`global:${g.key}`, {
+    put({
       kind: "global",
       id: g.key,
       state: g.data,
       deleted: false,
       label: both(GLOBALS[g.key], g.key),
+      at: g.updated_at,
+      by: g.updated_by,
     });
+  const bundles = new Map<string, TextRow[]>();
   for (const t of await listTexts(db))
-    out.set(`text:${t.key}`, { kind: "text", id: t.key, state: t.value, deleted: false, label: same(t.key) });
+    bundles.set(bundleOf(t.key), [...(bundles.get(bundleOf(t.key)) ?? []), t]);
+  for (const [ns, texts] of bundles) {
+    const last = texts.reduce((a, b) => (new Date(b.updated_at) > new Date(a.updated_at) ? b : a));
+    put({
+      kind: "bundle",
+      id: ns,
+      state: bundleState(texts),
+      deleted: false,
+      label: bundleLabel(ns),
+      at: last.updated_at,
+      by: last.updated_by,
+    });
+  }
   return out;
 }
 
@@ -209,9 +294,8 @@ export async function changes(db: Db): Promise<Change[]> {
     const change = changeOf(w, prod.get(key));
     if (change) out.push({ kind: w.kind, id: w.id, label: w.label, change });
   }
-  const order: Kind[] = ["page", "component", "global", "text"];
   return out.sort(
-    (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.label.zh.localeCompare(b.label.zh),
+    (a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || a.label.zh.localeCompare(b.label.zh),
   );
 }
 
@@ -320,15 +404,30 @@ export async function createComponent(
   return id;
 }
 
-export async function saveComponent(db: Db, id: string, c: { name?: string; data?: unknown }, by: string) {
+/**
+ * A block saved: its name, its data (checked by its type) and the template that draws it ([template]: one of its type's,
+ * not deleted; null for its type's own view; left out, as it was).
+ */
+export async function saveComponent(
+  db: Db,
+  id: string,
+  c: { name?: string; data?: unknown; template?: string | null },
+  by: string,
+) {
   const now = await getComponent(db, id);
   if (!now || now.deleted) throw new CmsError("errors.noBlock");
   await mustHold(db, "component", id, by);
   const checked = c.data === undefined ? { value: now.data, errors: [] } : checkBlock(now.type, c.data);
+  const template = c.template === undefined ? now.template : c.template || null;
+  if (template) {
+    const t = await getTemplate(db, template);
+    if (!t || t.deleted || t.type !== now.type)
+      checked.errors.push(msg("check.noTemplate", { id: template }));
+  }
   if (checked.errors.length) throw new CmsError("errors.blockNotSaved", undefined, checked.errors);
   await db.query(
-    `update components set name = $2, data = $3, updated_at = now(), updated_by = $4 where id = $1`,
-    [id, c.name ?? now.name, JSON.stringify(checked.value), by],
+    `update components set name = $2, data = $3, template = $4, updated_at = now(), updated_by = $5 where id = $1`,
+    [id, c.name ?? now.name, JSON.stringify(checked.value), template, by],
   );
 }
 
@@ -363,13 +462,95 @@ export async function saveGlobal(db: Db, key: string, data: unknown, by: string)
   );
 }
 
+// ---- templates (the component styles) ----------------------------------------------------------------------------
+
+/**
+ * Every problem with [markup] as a template for blocks of [type]: the markup's, its fields', its UI texts' and icons'.
+ * Tags and code go into a message as its values (a message holds no tag and no brace of its own: next-intl reads them).
+ */
+export async function templateProblems(db: Db, type: string, markup: string) {
+  const texts = new Set((await listTexts(db)).map((t) => t.key));
+  return checkTemplate(markup, fieldsOf(type), { texts, icons: ICONS }).map((p) => {
+    const v: Record<string, string | number> = { ...p.values };
+    for (const k of ["tag", "open", "parent"]) if (typeof v[k] === "string") v[k] = `<${v[k]}>`;
+    if (typeof p.values.tag === "string") v.close = `</${p.values.tag}>`;
+    if (typeof v.allowed === "string")
+      v.allowed = v.allowed
+        .split(", ")
+        .map((x) => `<${x}>`)
+        .join(" ");
+    if (p.code === "badBinding") Object.assign(v, { example: "{title}", braces: "{{ }}" });
+    return msg(`markup.${p.code}`, v);
+  });
+}
+
+/** A new template of [type] (its markup checked), checked out to [by]. */
+export async function createTemplate(
+  db: Db,
+  type: string,
+  name: string,
+  markup: string,
+  by: string,
+  id = newId("tpl"),
+) {
+  if (!TYPES[type]) throw new CmsError("errors.noType", { type });
+  if (!name.trim()) throw new CmsError("errors.templateName");
+  const problems = await templateProblems(db, type, markup);
+  if (problems.length) throw new CmsError("errors.templateNotSaved", undefined, problems);
+  await db.query(`insert into templates (id, type, name, markup, updated_by) values ($1, $2, $3, $4, $5)`, [
+    id,
+    type,
+    name.trim(),
+    markup,
+    by,
+  ]);
+  await claimNew(db, "template", id, by);
+  return id;
+}
+
+export async function saveTemplate(db: Db, id: string, t: { name?: string; markup?: string }, by: string) {
+  const now = await getTemplate(db, id);
+  if (!now || now.deleted) throw new CmsError("errors.noTemplate", { id });
+  await mustHold(db, "template", id, by);
+  const name = (t.name ?? now.name).trim();
+  if (!name) throw new CmsError("errors.templateName");
+  const markup = t.markup ?? now.markup;
+  const problems = await templateProblems(db, now.type, markup);
+  if (problems.length) throw new CmsError("errors.templateNotSaved", undefined, problems);
+  await db.query(
+    `update templates set name = $2, markup = $3, updated_at = now(), updated_by = $4 where id = $1`,
+    [id, name, markup, by],
+  );
+}
+
+/** A template no block uses any more. */
+export async function deleteTemplate(db: Db, id: string, by: string) {
+  await mustHold(db, "template", id, by);
+  const blocks = await drawnBy(db, id);
+  if (blocks.length)
+    throw new CmsError(
+      "errors.templateInUse",
+      undefined,
+      blocks.map((b) => msg("check.drawsBlock", { label: typedLabel(b) })),
+    );
+  await db.query(`update templates set deleted = true, updated_at = now(), updated_by = $2 where id = $1`, [
+    id,
+    by,
+  ]);
+}
+
+// ---- the UI texts, by their bundle -----------------------------------------------------------------------------
+
 export const isTextKey = (key: string) => /^[A-Za-z][\w-]*(\.[\w-]+)+$/.test(key);
 
+/** A text saved: its bundle must be yours (a text of a bundle that doesn't exist yet makes it, yours). */
 export async function saveText(db: Db, key: string, value: L10n, by: string) {
   if (!isTextKey(key)) throw new CmsError("errors.textKey", { key });
-  const exists = (await db.query(`select 1 from texts where key = $1`, [key])).rows.length > 0;
-  if (exists) await mustHold(db, "text", key, by);
-  else await claimNew(db, "text", key, by);
+  const ns = bundleOf(key);
+  const exists =
+    (await db.query(`select 1 from items where kind = 'bundle' and id = $1`, [ns])).rows.length > 0;
+  if (exists) await mustHold(db, "bundle", ns, by);
+  else await claimNew(db, "bundle", ns, by);
   const clean: L10n = {};
   for (const l of LOCALES) if (typeof value[l] === "string") clean[l] = value[l];
   await db.query(
@@ -380,8 +561,9 @@ export async function saveText(db: Db, key: string, value: L10n, by: string) {
 }
 
 /**
- * The working copy of a file set to a checked-in version: [state], or deleted when [state] is null (a page or a block
- * keeps its row, marked; a global or a text goes). What discarding and restoring a version write; no ownership check.
+ * The working copy of a file set to a checked-in version: [state], or deleted when [state] is null (a page, a block or a
+ * template keeps its row, marked; a global goes; a bundle is its texts). What discarding and restoring a version write;
+ * no ownership check.
  */
 export async function writeWorking(db: Db, kind: Kind, id: string, state: unknown, by: string) {
   if (kind === "page") {
@@ -416,17 +598,42 @@ export async function writeWorking(db: Db, kind: Kind, id: string, state: unknow
       ));
     const s = state as ReturnType<typeof componentState>;
     await db.query(
-      `insert into components (id, type, name, data, deleted, updated_by) values ($1, $2, $3, $4, false, $5)
-       on conflict (id) do update set type = $2, name = $3, data = $4, deleted = false, updated_at = now(), updated_by = $5`,
-      [id, s.type, s.name, JSON.stringify(s.data), by],
+      `insert into components (id, type, name, template, data, deleted, updated_by) values ($1, $2, $3, $4, $5, false, $6)
+       on conflict (id) do update set type = $2, name = $3, template = $4, data = $5, deleted = false, updated_at = now(),
+         updated_by = $6`,
+      [id, s.type, s.name, s.template ?? null, JSON.stringify(s.data), by],
     );
-  } else {
-    const table = kind === "global" ? "globals" : "texts";
-    const column = kind === "global" ? "data" : "value";
-    if (state === null) return void (await db.query(`delete from ${table} where key = $1`, [id]));
+  } else if (kind === "template") {
+    if (state === null)
+      return void (await db.query(
+        `update templates set deleted = true, updated_at = now(), updated_by = $2 where id = $1`,
+        [id, by],
+      ));
+    const s = state as Template;
     await db.query(
-      `insert into ${table} (key, ${column}, updated_by) values ($1, $2, $3)
-         on conflict (key) do update set ${column} = $2, updated_at = now(), updated_by = $3`,
+      `insert into templates (id, type, name, markup, deleted, updated_by) values ($1, $2, $3, $4, false, $5)
+       on conflict (id) do update set type = $2, name = $3, markup = $4, deleted = false, updated_at = now(), updated_by = $5`,
+      [id, s.type, s.name, s.markup, by],
+    );
+  } else if (kind === "bundle") {
+    // The bundle's texts as [state] has them: the others of its namespace go.
+    const texts = (state ?? {}) as Record<string, L10n>;
+    await db.query(`delete from texts where split_part(key, '.', 1) = $1 and not (key = any($2::text[]))`, [
+      id,
+      Object.keys(texts),
+    ]);
+    for (const [key, value] of Object.entries(texts))
+      await db.query(
+        `insert into texts (key, value, updated_by) values ($1, $2, $3)
+           on conflict (key) do update set value = $2, updated_at = now(), updated_by = $3
+           where texts.value is distinct from $2::jsonb`,
+        [key, JSON.stringify(value), by],
+      );
+  } else {
+    if (state === null) return void (await db.query(`delete from globals where key = $1`, [id]));
+    await db.query(
+      `insert into globals (key, data, updated_by) values ($1, $2, $3)
+         on conflict (key) do update set data = $2, updated_at = now(), updated_by = $3`,
       [id, JSON.stringify(state), by],
     );
   }
@@ -434,11 +641,14 @@ export async function writeWorking(db: Db, kind: Kind, id: string, state: unknow
 
 /** A file made in the CMS and never checked in, gone: its working copy and its state. */
 export async function forget(db: Db, kind: Kind, id: string) {
-  const table = { page: "pages", component: "components", global: "globals", text: "texts" }[kind];
-  await db.query(
-    `delete from ${table} where ${kind === "page" || kind === "component" ? "id" : "key"} = $1`,
-    [id],
-  );
+  const where: Record<Kind, string> = {
+    page: `delete from pages where id = $1`,
+    component: `delete from components where id = $1`,
+    template: `delete from templates where id = $1`,
+    global: `delete from globals where key = $1`,
+    bundle: `delete from texts where split_part(key, '.', 1) = $1`,
+  };
+  await db.query(where[kind], [id]);
   await db.query(`delete from items where kind = $1 and id = $2`, [kind, id]);
 }
 
@@ -463,21 +673,24 @@ export function contentOf(
 ): SiteContent {
   const pages = new Map<string, PageState>();
   const comps = new Map<string, CompState>();
+  const templates: Record<string, Template> = {};
   const globals: Record<string, unknown> = {};
   const texts: Record<string, L10n> = {};
   for (const r of revisions.values()) {
     if (r.deleted) continue;
     if (r.kind === "page") pages.set(r.entity_id, r.data as PageState);
     else if (r.kind === "component") comps.set(r.entity_id, r.data as CompState);
+    else if (r.kind === "template") templates[r.entity_id] = r.data as Template;
     else if (r.kind === "global") globals[r.entity_id] = r.data;
-    else texts[r.entity_id] = r.data as L10n;
+    else if (r.kind === "bundle") Object.assign(texts, r.data as Record<string, L10n>);
   }
-  return assemble(pages, comps, globals, texts, o);
+  return assemble(pages, comps, templates, globals, texts, o);
 }
 
 function assemble(
   pages: Map<string, PageState>,
   comps: Map<string, CompState>,
+  templates: Record<string, Template>,
   globals: Record<string, unknown>,
   texts: Record<string, L10n>,
   o: { activeOnly?: boolean; environment?: SiteContent["environment"] },
@@ -495,7 +708,9 @@ function assemble(
       spacing: p.spacing,
       blocks: p.blocks.flatMap((b) => {
         const c = comps.get(b);
-        return c ? [{ id: b, type: c.type, name: c.name, data: c.data }] : [];
+        return c
+          ? [{ id: b, type: c.type, name: c.name, ...(c.template && { template: c.template }), data: c.data }]
+          : [];
       }),
     });
   }
@@ -509,6 +724,7 @@ function assemble(
     globals: globals as unknown as SiteContent["globals"],
     pages: out,
     texts,
+    templates,
   };
 }
 
@@ -524,11 +740,13 @@ export async function buildContent(
   if (view !== "draft") return contentOf(await revisionsAt(db, OVERLAYS[view]), o);
   const pages = new Map<string, PageState>();
   const comps = new Map<string, CompState>();
+  const templates: Record<string, Template> = {};
   const globals: Record<string, unknown> = {};
   const texts: Record<string, L10n> = {};
   for (const p of await listPages(db)) if (!p.deleted) pages.set(p.id, pageState(p));
   for (const c of await listComponents(db)) if (!c.deleted) comps.set(c.id, componentState(c));
+  for (const t of await listTemplates(db)) if (!t.deleted) templates[t.id] = templateState(t);
   for (const g of await listGlobals(db)) globals[g.key] = g.data;
   for (const t of await listTexts(db)) texts[t.key] = t.value;
-  return assemble(pages, comps, globals, texts, o);
+  return assemble(pages, comps, templates, globals, texts, o);
 }

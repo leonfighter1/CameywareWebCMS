@@ -7,11 +7,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
+import { bundleOf } from "./bundles";
 import type { Db } from "./db";
 import { fileStates } from "./files";
 import { siteRepo } from "./paths";
 import { createRelease } from "./releases";
-import { canonical, listTexts, revisionsAt } from "./store";
+import { canonical, listTexts, revisionsAt, workingStates } from "./store";
 import { publishDirect, recordSeed } from "./workflow";
 import { GLOBAL_KEYS, type L10n, LOCALES, type SiteContent } from "@/generated/model";
 
@@ -97,7 +98,7 @@ export async function seedIfEmpty(db: PGlite, repo = siteRepo()): Promise<boolea
       ...p.blocks.map((b) => ({ kind: "component" as const, id: b.id })),
     ]),
     ...GLOBAL_KEYS.map((k) => ({ kind: "global" as const, id: k })),
-    ...Object.keys(texts).map((k) => ({ kind: "text" as const, id: k })),
+    ...[...new Set(Object.keys(texts).map(bundleOf))].map((id) => ({ kind: "bundle" as const, id })),
   ];
   await publishDirect(db, items, "初始内容：从官网的 content/site.json 和 messages 导入", SYSTEM);
   const release = await createRelease(db, SYSTEM, "官网当时的内容", () => false);
@@ -106,20 +107,30 @@ export async function seedIfEmpty(db: PGlite, repo = siteRepo()): Promise<boolea
 }
 
 /**
- * Texts the code added since (a new message key): into the CMS as the code has them, production's version at once (the
- * website already shows them from its code). A language the CMS lacks for a text nobody holds: the code's too.
+ * Texts the code added since (a new message key): into the CMS as the code has them, their bundle's production version
+ * at once (the website already shows them from its code). A language the CMS lacks for a text: the code's too. Only in
+ * a bundle nobody holds, as production has it (or a bundle that doesn't exist yet): an editor's draft is never published
+ * this way; a bundle someone holds gets them at a start after it is free (the website shows the code's words till then).
  */
 export async function addCodeTexts(db: PGlite, repo = siteRepo()): Promise<string[]> {
   const have = new Map((await listTexts(db)).map((t) => [t.key, t.value]));
   const states = await fileStates(db);
   const prod = await revisionsAt(db, () => false);
+  const work = await workingStates(db);
+  const free = (ns: string) => {
+    const f = states.get(`bundle:${ns}`);
+    if (!f) return !work.has(`bundle:${ns}`);
+    return (
+      f.status === "available" &&
+      canonical(prod.get(`bundle:${ns}`)?.data) === canonical(work.get(`bundle:${ns}`)?.state)
+    );
+  };
   const added: string[] = [];
+  const bundles = new Set<string>();
   for (const [key, value] of Object.entries(codeTexts(repo))) {
+    if (!free(bundleOf(key))) continue;
     if (have.has(key)) {
       const now = have.get(key)!;
-      // Only a text nobody holds, as production has it: an editor's draft is never published this way.
-      if (states.get(`text:${key}`)?.status !== "available") continue;
-      if (canonical(prod.get(`text:${key}`)?.data) !== canonical(now)) continue;
       const merged = { ...value, ...now };
       if (canonical(merged) === canonical(now)) continue;
       await db.query(`update texts set value = $2, updated_at = now(), updated_by = $3 where key = $1`, [
@@ -134,11 +145,12 @@ export async function addCodeTexts(db: PGlite, repo = siteRepo()): Promise<strin
         SYSTEM,
       ]);
     added.push(key);
+    bundles.add(bundleOf(key));
   }
-  if (added.length)
+  if (bundles.size)
     await publishDirect(
       db,
-      added.map((id) => ({ kind: "text" as const, id })),
+      [...bundles].map((id) => ({ kind: "bundle" as const, id })),
       "代码里新增的界面文字",
       SYSTEM,
     );

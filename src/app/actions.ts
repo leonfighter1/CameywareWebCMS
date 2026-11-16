@@ -10,18 +10,24 @@ import { startCmsSiteBuild } from "@/lib/deploy";
 import { type Item, putBack, take } from "@/lib/files";
 import { toHant } from "@/lib/hant";
 import { attempt, database, editor, publisher } from "@/lib/server";
+import { fieldsOf } from "@/lib/catalog";
 import {
   createComponent,
   createPage,
+  createTemplate,
   deleteComponent,
   deletePage,
+  deleteTemplate,
   getPage,
+  getTemplate,
   type Kind,
   type PageRow,
   saveComponent,
   saveGlobal,
   savePage,
+  saveTemplate,
   saveText,
+  templateProblems,
 } from "@/lib/store";
 import { importDoc, parseUpload } from "@/lib/transfer";
 import {
@@ -35,8 +41,9 @@ import {
   toPreview,
   toProduction,
 } from "@/lib/workflow";
-import { CmsError, LANG_COOKIE, type Lang, say } from "@/lib/words";
+import { CmsError, LANG_COOKIE, type Lang, say, sayAll } from "@/lib/words";
 import type { L10n } from "@/generated/model";
+import { starterTemplate } from "@/generated/template";
 
 const done = () => revalidatePath("/", "layout");
 
@@ -95,10 +102,63 @@ export async function setBlocksAction(pageId: string, blocks: string[]) {
   });
 }
 
-export async function saveComponentAction(id: string, name: string, data: unknown) {
+/** A block's name, data and template ("" its type's own view; left out, as it is). */
+export async function saveComponentAction(id: string, name: string, data: unknown, template?: string) {
   return attempt(async () => {
     const user = await editor();
-    await saveComponent(await database(), id, { name, data }, user.login);
+    await saveComponent(await database(), id, { name, data, template }, user.login);
+    done();
+  });
+}
+
+/** A new block of [type] on no page yet (the explorer's 新建区块), yours. */
+export async function createComponentAction(type: string, name: string) {
+  return attempt(async () => {
+    const user = await editor();
+    const id = await createComponent(await database(), type, name, user.login);
+    done();
+    return id;
+  });
+}
+
+/** A new template of [type], a copy of [copyOf]'s markup or the type's starter, yours. */
+export async function createTemplateAction(type: string, name: string, copyOf?: string) {
+  return attempt(async () => {
+    const user = await editor();
+    const pg = await database();
+    const source = copyOf ? await getTemplate(pg, copyOf) : undefined;
+    const id = await createTemplate(
+      pg,
+      type,
+      name,
+      source && source.type === type ? source.markup : starterTemplate(fieldsOf(type)),
+      user.login,
+    );
+    done();
+    return id;
+  });
+}
+
+export async function saveTemplateAction(id: string, name: string, markup: string) {
+  return attempt(async () => {
+    const user = await editor();
+    await saveTemplate(await database(), id, { name, markup }, user.login);
+    done();
+  });
+}
+
+/** [markup]'s problems as a template of [type], said in the reader's language, without saving it. */
+export async function checkTemplateAction(type: string, markup: string) {
+  return attempt(async (lang) => {
+    await editor();
+    return sayAll(await templateProblems(await database(), type, markup), lang);
+  });
+}
+
+export async function deleteTemplateAction(id: string) {
+  return attempt(async () => {
+    const user = await editor();
+    await deleteTemplate(await database(), id, user.login);
     done();
   });
 }

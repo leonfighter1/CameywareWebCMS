@@ -76,12 +76,23 @@ export function localize<T>(value: T, locale: string): Localized<T> {
   return value as Localized<T>;
 }
 
-/** One part of a page: its type picks its view (cms/types.json), its data what the view shows. */
+/**
+ * One part of a page: its type picks its view (cms/types.json), its data what the view shows; a template of the CMS's
+ * (content.templates), when it names one, draws it instead.
+ */
 export interface Block {
   id: string;
   type: string;
   name?: string;
+  template?: string;
   data: Record<string, unknown>;
+}
+
+/** A look for the blocks of [type], written in the CMS (template.ts): a component style. */
+export interface Template {
+  type: string;
+  name: string;
+  markup: string;
 }
 
 export interface Page {
@@ -154,6 +165,8 @@ export interface SiteContent {
   pages: Page[];
   /** The UI texts by their message key ("nav.signIn"): they win over messages/*.json. */
   texts: Record<string, L10n>;
+  /** The CMS's templates by id, as the blocks name them (none in a snapshot made before them). */
+  templates?: Record<string, Template>;
 }
 
 /** Paths the code's own pages and the server hold: no CMS page may take one. */

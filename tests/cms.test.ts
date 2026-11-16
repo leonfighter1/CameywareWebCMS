@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
+import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
 import { canEdit, canPublish, redeem } from "@/lib/auth";
 import { check, checkBlock, fieldsOf } from "@/lib/catalog";
@@ -15,6 +15,8 @@ import {
   buildContent,
   changes,
   createComponent,
+  createTemplate,
+  deleteTemplate,
   getComponent,
   listPages,
   saveComponent,
@@ -97,11 +99,11 @@ describe("the first start", () => {
 
   it("migrates a v1 database: what was checked in is production's, a draft never checked in its editor's", async () => {
     const old = new PGlite();
-    await old.exec(MIGRATIONS[0]!);
+    await old.exec(MIGRATIONS[0] as string);
     await old.exec(`insert into checkins (id, message, author, items) values (1, 'm', 'a', '[]');
       insert into pages (id, path, updated_by) values ('p1', '/a/', 'lee'), ('p2', '/b/', 'kim');
       insert into revisions (kind, entity_id, data, checkin_id, author) values ('page', 'p1', '{}', 1, 'lee');`);
-    await old.exec(MIGRATIONS[1]!);
+    await old.exec(MIGRATIONS[1] as string);
     const rows = (
       await old.query<{ id: string; status: string; owner: string | null; prod: number | null }>(
         `select id, status, owner, prod_revision_id as prod from items order by id`,
@@ -110,6 +112,47 @@ describe("the first start", () => {
     expect(rows.map((r) => [r.id, r.status, r.owner, r.prod === null ? null : Number(r.prod)])).toEqual([
       ["p1", "available", null, 1],
       ["p2", "checked_out", "kim", null],
+    ]);
+  });
+
+  it("migrates a v2 database: the text files become bundle files, production and every release's manifest with them", async () => {
+    const old = new PGlite();
+    await old.exec(MIGRATIONS[0] as string);
+    await old.exec(MIGRATIONS[1] as string);
+    await old.exec(`
+      insert into checkins (id, message, author, items) values (1, 'm', 'a', '[]');
+      insert into texts (key, value, updated_by) values
+        ('nav.a', '{"zh":"甲"}', 'a'), ('nav.b', '{"zh":"乙改"}', 'kim'), ('auth.c', '{"zh":"丙"}', 'a');
+      insert into revisions (id, kind, entity_id, data, checkin_id, author) values
+        (1, 'text', 'nav.a', '{"zh":"甲"}', 1, 'a'), (2, 'text', 'nav.b', '{"zh":"乙"}', 1, 'a'),
+        (3, 'text', 'auth.c', '{"zh":"丙"}', 1, 'a');
+      select setval('revisions_id_seq', 3);
+      insert into items (kind, id, status, owner, prod_revision_id) values
+        ('text', 'nav.a', 'available', null, 1), ('text', 'nav.b', 'checked_out', 'kim', 2),
+        ('text', 'auth.c', 'available', null, 3);
+      insert into releases (id, author, content, manifest) values
+        (1, 'a', '{}', '{"text:nav.a": 1, "text:nav.b": 2, "text:auth.c": 3, "page:p": 9}');`);
+    await old.transaction((tx) => (MIGRATIONS[2] as (tx: Transaction) => Promise<void>)(tx));
+    const items = (
+      await old.query<{ kind: string; id: string; status: string; owner: string | null; prod: number }>(
+        `select kind, id, status, owner, prod_revision_id as prod from items order by id`,
+      )
+    ).rows;
+    expect(items.map((i) => [i.kind, i.id, i.status, i.owner])).toEqual([
+      ["bundle", "auth", "available", null],
+      ["bundle", "nav", "checked_out", "kim"],
+    ]);
+    const nav = items.find((i) => i.id === "nav")!;
+    const rev = (await old.query<{ data: unknown }>(`select data from revisions where id = $1`, [nav.prod]))
+      .rows[0]!;
+    // Production's version: the texts as production had them (乙, not kim's 乙改, which stays in the working copy).
+    expect(rev.data).toEqual({ "nav.a": { zh: "甲" }, "nav.b": { zh: "乙" } });
+    const manifest = (await old.query<{ manifest: Record<string, number> }>(`select manifest from releases`))
+      .rows[0]!.manifest;
+    expect(Object.keys(manifest).sort()).toEqual(["bundle:auth", "bundle:nav", "page:p"]);
+    expect(Number(manifest["bundle:nav"])).toBe(Number(nav.prod));
+    expect((await old.query(`select template from components`)).fields.map((f) => f.name)).toEqual([
+      "template",
     ]);
   });
 });
@@ -230,7 +273,7 @@ describe("the workflow", () => {
   it("goes to preview once built, back to check-in, then to production alone with what was picked", async () => {
     await retitle("lee", "预览站的标题");
     await checkIn(pg, heroItem, "首页标题", "lee");
-    const texts = [{ kind: "text" as const, id: "nav.signIn" }];
+    const texts = [{ kind: "bundle" as const, id: "nav" }];
     await take(pg, texts, "kim");
     await saveText(pg, "nav.signIn", { zh: "登入吧", en: "Sign in" }, "kim");
     await checkIn(pg, texts, "登录的字", "kim");
@@ -254,7 +297,7 @@ describe("the workflow", () => {
     await (
       await backToCheckIn(pg, texts, "lee", built)
     ).done;
-    expect((await fileState(pg, "text", "nav.signIn"))!.stage).toBe("checked_in");
+    expect((await fileState(pg, "bundle", "nav"))!.stage).toBe("checked_in");
     expect((await buildContent(pg, "preview")).texts["nav.signIn"]!.zh).toBe("登录");
 
     await expect(toProduction(pg, texts, "admin", "", built)).rejects.toMatchObject({
@@ -270,7 +313,9 @@ describe("the workflow", () => {
     const production = await buildContent(pg, "production");
     expect([titleOf(production), production.texts["nav.signIn"]!.zh]).toEqual(["预览站的标题", "登录"]);
     expect((await releaseContent(pg, prod.release)).texts["nav.signIn"]!.zh).toBe("登录");
-    expect(await changes(pg)).toEqual([expect.objectContaining({ id: "nav.signIn", change: "changed" })]);
+    expect(await changes(pg)).toEqual([
+      expect.objectContaining({ kind: "bundle", id: "nav", change: "changed" }),
+    ]);
   });
 
   it("takes a page's new blocks along at each step; a release never shows a page without one", async () => {
@@ -325,6 +370,109 @@ describe("the workflow", () => {
   });
 });
 
+describe("templates (component styles)", () => {
+  const CENTRED = `<Box hero py="xl"><Title order="1" ta="center">{title}</Title></Box>`;
+
+  it("draws a block with a template, which goes along with it to preview and production", async () => {
+    await expect(
+      createTemplate(pg, "hero_banner", "坏的", "<script>x</script>", "lee"),
+    ).rejects.toMatchObject({
+      details: [
+        expect.objectContaining({
+          key: "markup.unknownTag",
+          values: expect.objectContaining({ tag: "<script>" }),
+        }),
+      ],
+    });
+    const id = await createTemplate(pg, "hero_banner", "居中横幅", CENTRED, "lee");
+    expect(await fileState(pg, "template", id)).toMatchObject({ status: "checked_out", owner: "lee" });
+    await take(pg, heroItem, "lee");
+    await expect(saveComponent(pg, hero.id, { template: "tpl-none" }, "lee")).rejects.toMatchObject({
+      details: [expect.objectContaining({ key: "check.noTemplate" })],
+    });
+    await saveComponent(pg, hero.id, { template: id }, "lee");
+    const draft = await buildContent(pg, "draft");
+    expect(draft.pages.find((p) => p.path === "/")!.blocks[0]!.template).toBe(id);
+    expect(draft.templates![id]).toEqual({ type: "hero_banner", name: "居中横幅", markup: CENTRED });
+    await expect(deleteTemplate(pg, id, "lee")).rejects.toThrow(/还有区块在用/);
+
+    // The block brings its new template along (lee holds it).
+    await checkIn(pg, heroItem, "居中的横幅", "lee");
+    expect((await fileState(pg, "template", id))!.stage).toBe("checked_in");
+    // Terminated, the block's template leaves the workflow with it; checked in again, both go back in.
+    await terminate(pg, heroItem);
+    expect(await fileState(pg, "template", id)).toMatchObject({ status: "checked_out", owner: "lee" });
+    await checkIn(pg, heroItem, "居中的横幅", "lee");
+    const r = await toPreview(pg, heroItem, "lee", "", built);
+    expect(r.items).toHaveLength(2);
+    await r.done;
+    // The template alone back to check-in would leave the block on preview without it.
+    await expect(backToCheckIn(pg, [{ kind: "template", id }], "lee", built)).rejects.toMatchObject({
+      details: [expect.objectContaining({ key: "errors.templateMissingAt" })],
+    });
+    // The block back to check-in takes its template back with it, as it took it there.
+    const back = await backToCheckIn(pg, heroItem, "lee", built);
+    expect(back.items).toHaveLength(2);
+    await back.done;
+    expect((await fileState(pg, "template", id))!.stage).toBe("checked_in");
+    await (
+      await toPreview(pg, heroItem, "lee", "", built)
+    ).done;
+    await (
+      await toProduction(pg, heroItem, "admin", "", built)
+    ).done;
+    const production = await buildContent(pg, "production");
+    expect(production.pages.find((p) => p.path === "/")!.blocks[0]!.template).toBe(id);
+    expect(production.templates![id]!.markup).toBe(CENTRED);
+    expect(await fileState(pg, "template", id)).toMatchObject({ status: "available" });
+  });
+
+  it("refuses a block's check-in when its new template is someone else's, and a discard that would orphan it", async () => {
+    const id = await createTemplate(pg, "hero_banner", "金的样式", CENTRED, "kim");
+    await take(pg, heroItem, "lee");
+    await saveComponent(pg, hero.id, { template: id }, "lee");
+    await expect(checkIn(pg, heroItem, "要金的样式", "lee")).rejects.toMatchObject({
+      details: [expect.objectContaining({ key: "errors.templateNotComing" })],
+    });
+    await expect(discard(pg, [{ kind: "template", id }], "kim")).rejects.toThrow(/还有区块在用/);
+    await discard(pg, heroItem, "lee");
+    await discard(pg, [{ kind: "template", id }], "kim");
+    expect(await fileState(pg, "template", id)).toBeUndefined();
+    expect(await changes(pg)).toEqual([]);
+  });
+});
+
+describe("resource bundles", () => {
+  const nav = [{ kind: "bundle" as const, id: "nav" }];
+
+  it("files the UI texts by their bundle: taken, changed and discarded whole", async () => {
+    await expect(saveText(pg, "nav.signIn", { zh: "登入" }, "lee")).rejects.toThrow(/还没拿取/);
+    await take(pg, nav, "lee");
+    await saveText(pg, "nav.signIn", { zh: "登入" }, "lee");
+    await saveText(pg, "nav.extra", { zh: "多一条" }, "lee");
+    expect((await changes(pg)).map((c) => [c.kind, c.id, c.change])).toEqual([["bundle", "nav", "changed"]]);
+    expect((await buildContent(pg, "draft")).texts["nav.extra"]).toEqual({ zh: "多一条" });
+    await discard(pg, nav, "lee");
+    const draft = await buildContent(pg, "draft");
+    expect([draft.texts["nav.extra"], draft.texts["nav.signIn"]!.zh]).toEqual([undefined, "登录"]);
+    // A bundle that doesn't exist yet is made by its first text, its maker's.
+    await saveText(pg, "brandnew.hello", { zh: "你好" }, "kim");
+    expect(await fileState(pg, "bundle", "brandnew")).toMatchObject({ status: "checked_out", owner: "kim" });
+  });
+
+  it("an upload of texts changes their bundles, taken for you when nobody has them", async () => {
+    const doc = { cms: 1, kind: "texts", texts: { "nav.signIn": { zh: "登入" }, "auth.new": { zh: "新" } } };
+    const plan = await importDoc(pg, parseUpload(JSON.stringify(doc)), "lee", false);
+    expect(plan.items.map((i) => [i.kind, i.id, i.action, i.take])).toEqual([
+      ["bundle", "nav", "update", true],
+      ["bundle", "auth", "update", true],
+    ]);
+    await importDoc(pg, parseUpload(JSON.stringify(doc)), "lee", true);
+    expect(await fileState(pg, "bundle", "auth")).toMatchObject({ status: "checked_out", owner: "lee" });
+    expect((await buildContent(pg, "draft")).texts["auth.new"]).toEqual({ zh: "新" });
+  });
+});
+
 describe("versions", () => {
   it("lists a file's versions with production's marked, and restores one as a draft", async () => {
     await retitle("lee", "第二版");
@@ -372,8 +520,18 @@ describe("versions", () => {
 });
 
 describe("download and upload", () => {
-  it("gives back what it took, in JSON and in XML", async () => {
+  it("gives back what it took, in JSON and in XML, templates too", async () => {
+    const id = await createTemplate(
+      pg,
+      "hero_banner",
+      "带 < 和 & 的",
+      `<Box hero>\n  <Title order="1">{title} &amp; {eyebrow}</Title>\n</Box>`,
+      "lee",
+    );
+    await take(pg, heroItem, "lee");
+    await saveComponent(pg, hero.id, { template: id }, "lee");
     const doc = await exportDoc(pg, "site");
+    expect(doc.kind === "site" && doc.templates?.map((t) => t.id)).toEqual([id]);
     for (const text of [JSON.stringify(doc), toXml(doc)]) {
       const plan = await importDoc(pg, parseUpload(text), "lee", false);
       expect(

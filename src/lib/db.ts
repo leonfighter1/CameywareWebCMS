@@ -6,15 +6,17 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
+import { bundlesFromTexts } from "./bundles";
 
 export type Db = PGlite | Transaction;
 
 /**
- * Pages, components, globals and texts are the working copy (what the editors save: the drafts); revisions are what was
+ * Pages, components, templates, globals and texts are the working copy (what the editors save: the drafts; the texts are
+ * filed by their bundle); revisions are what was
  * checked in, one row per item per check-in (each file's versions); items, each file's state; a release is the whole
  * site at a moment, frozen; an environment (preview, production) names the release it shows.
  */
-export const MIGRATIONS = [
+export const MIGRATIONS: (string | ((tx: Transaction) => Promise<void>))[] = [
   `create table pages (
      id text primary key,
      path text not null unique,
@@ -129,6 +131,32 @@ export const MIGRATIONS = [
    alter table releases add column manifest jsonb;
    alter table deployments add column action text not null default 'release';
    alter table deployments add column items jsonb not null default '[]';`,
+  // S3 (the owner, 2026-11-16): templates (component styles) are files, a block names the one that draws it; the UI
+  // texts are files by their bundle (T2), the text files merged into them (bundles.ts). The texts' old versions stay.
+  async (tx: Transaction) => {
+    await tx.exec(`
+      create table templates (
+        id text primary key,
+        type text not null,
+        name text not null default '',
+        markup text not null default '',
+        deleted boolean not null default false,
+        updated_at timestamptz not null default now(),
+        updated_by text not null default ''
+      );
+      alter table components add column template text;
+      alter table revisions drop constraint revisions_kind_check;
+      alter table revisions add constraint revisions_kind_check
+        check (kind in ('page', 'component', 'global', 'text', 'bundle', 'template'));
+      alter table items drop constraint items_kind_check;
+      alter table items add constraint items_kind_check
+        check (kind in ('page', 'component', 'global', 'text', 'bundle', 'template'));`);
+    await bundlesFromTexts(tx);
+    await tx.exec(`
+      alter table items drop constraint items_kind_check;
+      alter table items add constraint items_kind_check
+        check (kind in ('page', 'component', 'global', 'bundle', 'template'));`);
+  },
 ];
 
 async function migrate(db: PGlite) {
@@ -137,7 +165,9 @@ async function migrate(db: PGlite) {
   const at = rows[0]?.version ?? 0;
   for (let v = at; v < MIGRATIONS.length; v++) {
     await db.transaction(async (tx) => {
-      await tx.exec(MIGRATIONS[v]!);
+      const step = MIGRATIONS[v]!;
+      if (typeof step === "string") await tx.exec(step);
+      else await step(tx);
       await tx.exec(`delete from schema_version`);
       await tx.query(`insert into schema_version values ($1)`, [v + 1]);
     });

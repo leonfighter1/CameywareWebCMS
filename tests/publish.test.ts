@@ -39,7 +39,7 @@ it("推到正式站 pushes content/site.json alone on top of GitHub's main; loca
 
   const pg = await freshDb();
   await seedIfEmpty(pg, siteRepo());
-  const text = [{ kind: "text" as const, id: "nav.signIn" }];
+  const text = [{ kind: "bundle" as const, id: "nav" }];
   await take(pg, text, "lee");
   await saveText(pg, "nav.signIn", { zh: "登入", en: "Sign in" }, "lee");
   await checkIn(pg, text, "登录的字", "lee");
@@ -69,5 +69,5 @@ it("推到正式站 pushes content/site.json alone on top of GitHub's main; loca
   expect(git(site, "log", "-1", "--format=%s")).toBe("local code");
   expect(git(site, "worktree", "list").split("\n")).toHaveLength(1);
   expect((await environments(pg)).production.release).toBe(release);
-  expect((await fileState(pg, "text", "nav.signIn"))!.status).toBe("available");
+  expect((await fileState(pg, "bundle", "nav"))!.status).toBe("available");
 });

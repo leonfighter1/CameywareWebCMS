@@ -17,12 +17,9 @@ import {
   IconExternalLink,
   IconFolders,
   IconGitBranch,
-  IconLanguage,
-  IconLayoutGrid,
   IconLogout,
   IconTransfer,
   IconUserCheck,
-  IconWorld,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -32,14 +29,14 @@ import { setLanguageAction, signOutAction } from "@/app/actions";
 import type { Lang } from "@/lib/words";
 
 const NAV = [
-  { href: "/", key: "central", icon: IconFolders },
-  { href: "/components/", key: "components", icon: IconLayoutGrid },
-  { href: "/globals/company/", key: "globals", icon: IconWorld, match: "/globals/" },
-  { href: "/texts/", key: "texts", icon: IconLanguage },
+  { href: "/", key: "explorer", icon: IconFolders },
   { href: "/mine/", key: "mine", icon: IconUserCheck },
   { href: "/workflow/", key: "workflow", icon: IconGitBranch },
   { href: "/transfer/", key: "transfer", icon: IconTransfer },
 ] as const;
+
+/** The editors the explorer opens: where its entry stays lit. */
+const EDITORS = ["/pages/", "/components/", "/templates/", "/bundles/", "/globals/", "/texts/"];
 
 /** 中文 / English: kept in this browser (a cookie the server reads). */
 export function LanguageSwitch({ lang }: { lang: Lang }) {
@@ -84,10 +81,10 @@ export function Shell({
   const [opened, { toggle }] = useDisclosure();
   const path = usePathname();
   const router = useRouter();
-  const on = (href: string, match?: string) =>
+  const on = (href: string) =>
     href === "/"
-      ? path === "/" || path.startsWith("/pages/")
-      : path.startsWith(match ?? href.replace(/\/$/, ""));
+      ? path === "/" || EDITORS.some((e) => path.startsWith(e))
+      : path.startsWith(href.replace(/\/$/, ""));
   const counts: Record<string, number> = { mine, workflow };
   return (
     <AppShell
@@ -146,13 +143,13 @@ export function Shell({
       <AppShell.Navbar p="xs">
         <ScrollArea>
           <Stack gap={2}>
-            {NAV.map(({ href, key, icon: Icon, ...rest }) => (
+            {NAV.map(({ href, key, icon: Icon }) => (
               <NavLink
                 key={href}
                 component={Link}
                 href={href}
                 label={t(`nav.${key}`)}
-                active={on(href, "match" in rest ? rest.match : undefined)}
+                active={on(href)}
                 leftSection={<Icon size={18} />}
                 rightSection={counts[key] ? <Badge size="sm">{counts[key]}</Badge> : null}
                 data-testid={`nav-${key}`}

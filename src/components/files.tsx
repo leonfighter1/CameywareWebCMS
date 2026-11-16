@@ -11,7 +11,7 @@ import { modals } from "@mantine/modals";
 import { IconHistory, IconLock } from "@tabler/icons-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { checkInAction, discardAction, putBackAction, restoreVersionAction, takeAction } from "@/app/actions";
 import type { FileView, VersionView } from "@/lib/present";
@@ -19,6 +19,15 @@ import { report } from "./result";
 
 /** A badge never cut short in a narrow table cell (Mantine ellipsises its label). */
 const WHOLE = { minWidth: "max-content" } as const;
+
+/** Each kind's folder in the explorer. */
+const FOLDERS: Record<FileView["kind"], string> = {
+  page: "content/pages",
+  component: "content/components",
+  template: "views/styles",
+  global: "content/common/globals",
+  bundle: "content/common/bundles",
+};
 
 /** Is [file] [me]'s to change? */
 export const isMine = (file: FileView | undefined, me: string) =>
@@ -119,7 +128,8 @@ export function confirm(o: {
 function Versions({ file, me, versions }: { file: FileView; me: string; versions: VersionView[] }) {
   const t = useTranslations("files");
   const router = useRouter();
-  const [opened, { open, close }] = useDisclosure();
+  // ?versions=1 (the explorer's 版本记录) opens them at once.
+  const [opened, { open, close }] = useDisclosure(useSearchParams().get("versions") === "1");
   const mine = isMine(file, me);
   return (
     <>
@@ -333,15 +343,9 @@ export function FileBar({
                     run: () =>
                       step(async () => {
                         const ok = report(await discardAction(item), t("discarded"));
-                        // A file never published is gone: back to where it was listed.
+                        // A file never published is gone: back to its folder in the explorer.
                         if (ok && file.change === "new")
-                          router.push(
-                            file.kind === "page"
-                              ? "/"
-                              : file.kind === "component"
-                                ? "/components/"
-                                : "/texts/",
-                          );
+                          router.push(`/?at=${encodeURIComponent(FOLDERS[file.kind])}`);
                         return ok && file.change !== "new";
                       }),
                   })

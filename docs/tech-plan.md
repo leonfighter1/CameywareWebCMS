@@ -107,6 +107,44 @@ workflow's files (已签入) or every draft (草稿).
 | WP14 | 我的文件 (mine, to check in, put back or discard together); the central page, editors and texts show each file's state                                   |
 | WP15 | The CMS in English and Chinese (next-intl, a switch); the catalog's labels in English; cms-preview's bar in the page's language                          |
 
+## S3 The explorer: content by type, component styles (templates), resource bundles (big: CMS v3.0.0, website v2.1.0)
+
+**The owner (2026-11-16), with two screenshots of Bell's CMS.Net (a tree on the left: Content/…/Components/Banner with
+its content files, Common/Components/ResourceBundles, Pages; Views/BRF/Component_Styles/Banner with its .cshtml
+templates; on the right each folder's files with Status (New, CheckedIn, CheckedOut, OnWorkflow), Modified Date and
+Modified By or Version History):**
+
+> your thoughts and results are pretty solid, but what I need is there is also a system can see components like this,
+> content contains files of each type: e.g. banner style, there is another component style that also have related
+> matched path with all templates related to this content, can express the content. this is a kind of CMS dashboard can
+> view who is doing what. also, look there is a folder called Resource bundle file, that contains all keys and values of
+> all rescourse form the website, this is like what you created, but need to be centeralized.
+
+**Decisions (asked first, all as recommended):** T1 templates are CMS files: each type's templates under 视图/组件样式/
+<类型>; the website's views stay as each type's 内置 template (code, read-only); new ones are written in the CMS in a safe
+markup (the site's components and the block's fields, no script), taken, checked in, through the workflow and versioned
+like content; each block picks its template. T2 a resource bundle is one file: the UI texts by their namespace (nav,
+auth, account, workspace, errors, app, … 12 bundles, 268 texts), taken, checked in and versioned whole. T3 a fixed tree:
+内容/页面, 内容/组件/<类型>, 内容/公共/资源包, 内容/公共/全局资料; 视图/组件样式/<类型>, the content's type folders and the
+styles' matched by the type.
+
+**The template markup (website `src/cms/template.ts`, shared here by `npm run sync`):** elements of the site (Box,
+Stack, Group, SimpleGrid, Grid/Col, Card, Title, Text, Badge, Button, Anchor, Image, Icon, Accordion, Disclaimer,
+ContactDetails, WebAppButton, ServiceCards, AppIcon, HeroArt, Html for a rich-text field), control (Each over a list
+field, If on a field, Work/Works for the works), bindings `{field}`, `{#}` (the number in an Each) and `{@ns.key}` (a text
+of the resource bundles). Only listed attributes, each value checked (tokens, numbers in a range, links /, https:,
+mailto:, tel:, #); React escapes every text; nothing becomes HTML but a rich-text field the catalog sanitised. The CMS
+checks a template against the type's fields and the bundles' keys before saving; the website draws it
+(`template-view.tsx`) and falls back to the type's 内置 view when a block names no template.
+
+| WP   | What                                                                                                                                                                                                                                         |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP16 | The website: the template markup (parse, check, draw), `block.template` and `content.templates` (additive), the CMS preview of one block with a template (`?block=&template=`)                                                               |
+| WP17 | Templates as files (migration 3: `templates`, `components.template`): editor with the elements' and the type's fields' reference and a live preview; a block picks one; a new one goes along at each step; in use refuses delete and discard |
+| WP18 | Resource bundles (kind `bundle`): the text files merged per namespace with their production and every release's manifest; the bundle editor; the code's new texts, upload and download by bundle                                             |
+| WP19 | The explorer as the central page: the tree, each folder's files (name, state, template or uses, modified, by, versions), filters and the steps on what is ticked; the root shows who is doing what                                           |
+| WP20 | Checks: the markup's tests in both repositories, migration 3, bundles and templates in the workflow; every route in both languages; a browser walk                                                                                           |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -126,6 +164,36 @@ workflow's files (已签入) or every draft (草稿).
 | WP13 | done                                         | v2.0.0                 |
 | WP14 | done                                         | v2.0.0                 |
 | WP15 | done                                         | v2.0.0, website v2.0.1 |
+| WP16 | done                                         | website v2.1.0         |
+| WP17 | done                                         | v3.0.0                 |
+| WP18 | done                                         | v3.0.0                 |
+| WP19 | done                                         | v3.0.0                 |
+| WP20 | done                                         | v3.0.0, website v2.1.0 |
+
+## 阶段总结 S3 (v3.0.0, 2026-11-16)
+
+1. **Delivered:** WP16 the website's template markup (`src/cms/template.ts`: parse, check, values, a starter per type;
+   `template-view.tsx` draws it with the site's components; `block.template`, `content.templates`; one block alone on
+   cms-preview for the editors' preview), website v2.1.0. WP17 templates as files (migration 3; `createTemplate`,
+   `saveTemplate`, `deleteTemplate`, `templateProblems`): the template editor (markup, every problem by line in the
+   reader's language, the type's fields, the syntax, the 30 elements, a live preview by block and language), each
+   type's built-in template page, the block's template picker; a block takes its new template along at every step
+   (check-in, preview, back to check-in, terminate, production); a release refuses a block without its template.
+   WP18 resource bundles: 12 files for 268 texts, merged by migration 3 with production's versions and every release's
+   manifest (production can still roll back to release 1); the bundle editor; the code's new texts, upload and download
+   by bundle. WP19 the explorer replacing the central page: the fixed tree with counts and the files someone holds, each
+   folder's files with state, about, modified, by and version history, filters, sort, pages, the steps on ticked files,
+   new page / block / template, the matched path between a type's content and its styles; the overview of who is doing
+   what. WP20 the checks below.
+2. **Numbers:** CMS 33 unit tests (27 before); website 31 (20 before); every route in both languages and at a phone's
+   width; a browser walk on real preview builds (releases 10 and 11).
+3. **Against the plan:** the problems of a template are `markup.*` messages, not `template.*` (a UI key had the same
+   name); a page's new parts now also go back with it and terminate with it (the walk found a block's template left on
+   preview after 退回签入); `canonical` moved to `json.ts` so migration 3 can use it; MIGRATIONS take a step function.
+4. **Mistakes:** 9 (Get-Content | Set-Content garbled a UTF-8 file; never round-trip a source file through them). The
+   CMS's MISTAKES.md now has the Rules list show-rules reads (it loaded none before).
+5. **Next:** the owner's look at the explorer; website v2.1.0 must be on GitHub before a block with a template is pushed
+   to production (without it production shows the block's built-in view); picture upload into the CMS (later).
 
 ## 阶段总结 S2 (v2.0.0, 2026-11-15)
 

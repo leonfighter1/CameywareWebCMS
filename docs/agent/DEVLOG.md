@@ -2,6 +2,28 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16: v3.0.0, S3 (the explorer, component styles, resource bundles)
+
+- The owner's request (Bell's CMS.Net screenshots) and T1–T3 are in docs/tech-plan.md (S3). Templates: the website's
+  markup (`src/cms/template.ts`, synced as `src/generated/template.ts`); here the `templates` table, `components.template`,
+  kind `template`; `templateProblems` says each problem as `markup.<code>` with tags and code as values (a message holds
+  no tag or brace: next-intl reads them). A block brings its new template along at each step (`newPartsOf`,
+  `withTheirParts`, the closure of page → blocks → templates); a release refuses a block without its template.
+- Bundles (`bundles.ts`): kind `bundle` per namespace; the texts stay a row each, a bundle's state is its texts;
+  migration 3 (now a function: MIGRATIONS takes SQL or a step) merged the text files, production's versions and every
+  release's manifest (one bundle revision per distinct content), the holder the last one who took a text.
+- The explorer replaced the central page, /components and /texts (they redirect); `FileView` has the last change and
+  who made it; the editors' bar opens the versions for `?versions=1`.
+- Found: a rename through Get-Content | Set-Content garbled workflow.ts (mistake 9, undone by the 1252 round trip);
+  the global rules file can't be written from this session's sandbox (the rule went here); docs/agent/MISTAKES.md wasn't
+  in the structure show-rules reads, so it loaded no rule (fixed: the Rules list first).
+- The first walk found 退回签入 on a block leaving its new template at 预览站: back to check-in and terminate now take
+  a file's new parts along too (as the other steps did); tested.
+- Checks: 33 unit tests; every route in zh and en signed in, the phone's width; the walk: a template made, broken and
+  fixed, previewed, chosen on the hero, checked in with it, on cms-preview and pushed to preview (2 files), back to
+  check-in (2 files), terminated, the hero discarded, the template put back (kept as an example, never published). The
+  local database was copied first (data/cms-v2-2026-11-16); production untouched (release 5).
+
 ## 2026-11-15 (c): v2.0.0, S2 (check-out, locks, the workflow's steps, versions, English)
 
 - The owner's request and W1–W4 are in docs/tech-plan.md (S2). Migration 2: `items` (each file's status, owner, stage,

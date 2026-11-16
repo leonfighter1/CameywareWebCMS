@@ -37,6 +37,17 @@ it("every message the server says is in both languages", () => {
   expect([...used].filter((k) => !known.has(k))).toEqual([]);
 });
 
+// A template's problems are said as markup.<code>: every code the template markup has (generated/template.ts).
+it("every problem a template can have is in both languages", () => {
+  const codes = new Set(
+    [...readFileSync("src/generated/template.ts", "utf8").matchAll(/problem\("(\w+)"/g)].map((m) => m[1]!),
+  );
+  expect(codes.size).toBeGreaterThan(20);
+  const known = new Set(keys(zh));
+  expect([...codes].filter((c) => !known.has(`markup.${c}`))).toEqual([]);
+  expect(keys(zh.markup).filter((c) => !codes.has(c))).toEqual([]);
+});
+
 it("every message reads in both languages (its placeholders and plurals well formed)", () => {
   for (const [locale, messages] of [
     ["zh", zh],

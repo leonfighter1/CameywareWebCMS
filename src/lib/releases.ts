@@ -14,7 +14,8 @@ export type Env = "preview" | "production";
 
 /**
  * A release of the site as a site shows it: production's files with those [overlay] picks from the workflow, the
- * active pages alone. Refused, with every page and block, when a page would show without one of its blocks.
+ * active pages alone. Refused, with every page and block, when a page would show without one of its blocks or a block
+ * without its template.
  */
 export async function createRelease(db: Db, author: string, note: string, overlay: (f: FileRow) => boolean) {
   const revisions = await revisionsAt(db, overlay);
@@ -25,7 +26,14 @@ export async function createRelease(db: Db, author: string, note: string, overla
     if (p.status !== "active") continue;
     for (const b of p.blocks) {
       const c = revisions.get(`component:${b}`);
-      if (!c || c.deleted) missing.push(msg("errors.blockMissingAt", { path: p.path, block: b }));
+      if (!c || c.deleted) {
+        missing.push(msg("errors.blockMissingAt", { path: p.path, block: b }));
+        continue;
+      }
+      const template = (c.data as { template?: string }).template;
+      const t = template ? revisions.get(`template:${template}`) : undefined;
+      if (template && (!t || t.deleted))
+        missing.push(msg("errors.templateMissingAt", { path: p.path, block: b, template }));
     }
   }
   if (missing.length) throw new CmsError("errors.releaseIncomplete", undefined, missing);
@@ -270,6 +278,8 @@ export async function diff(db: Db, from: number | undefined, to: number | Exclud
       m.set(`global:${k}`, { kind: "global", name: k, value: canonical(v) });
     for (const [k, v] of Object.entries(c.texts))
       m.set(`text:${k}`, { kind: "text", name: k, value: canonical(v) });
+    for (const [k, v] of Object.entries(c.templates ?? {}))
+      m.set(`template:${k}`, { kind: "template", name: v.name, value: canonical(v) });
     return m;
   };
   const [x, y] = [flat(a), flat(b)];
