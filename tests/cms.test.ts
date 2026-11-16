@@ -267,5 +267,6 @@ describe("繁體 from 简体", () => {
     expect(toHant("邮箱和用户协议")).toBe("電子郵件和用戶協議");
     expect(toHant("“我的账号”")).toBe("「我的帳號」");
     expect(toHant("30 天后自动删除")).toBe("30 天後自動刪除");
+    expect(toHant("未来我们会持续扩展")).toBe("未來我們會持續擴展");
   });
 });

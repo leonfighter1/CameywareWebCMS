@@ -27,6 +27,8 @@ const AFTER: [string | RegExp, string][] = [
   ["天后", "天後"],
   ["檔案", "文件"],
   ["儲值", "充值"],
+  // Its IT table reads 扩展 (to grow) as a software extension.
+  ["擴充套件", "擴展"],
   ["“", "「"],
   ["”", "」"],
   [/手機號(?!碼)/g, "手機號碼"],
