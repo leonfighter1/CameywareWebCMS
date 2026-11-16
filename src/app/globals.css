@@ -1,0 +1,18 @@
+body {
+  min-height: 100vh;
+}
+
+/* Code and HTML fields: monospace, as an editor would. */
+.cms-code textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+/* The page's preview beside its editor. */
+.cms-preview-frame {
+  width: 100%;
+  height: 78vh;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+}

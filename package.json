@@ -1,0 +1,52 @@
+{
+  "name": "cameyware-web-cms",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The content management system of the Cameyware website: pages, blocks, texts in four languages, check-in and releases.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "dev": "next dev -p 8790",
+    "build": "next build",
+    "start": "node --import tsx scripts/start.ts",
+    "build:site": "node --import tsx scripts/build-site.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@mantine/core": "^9.7.5",
+    "@mantine/form": "^9.7.5",
+    "@mantine/hooks": "^9.7.5",
+    "@mantine/modals": "^9.7.5",
+    "@mantine/notifications": "^9.7.5",
+    "@tabler/icons-react": "^3.50.0",
+    "fast-xml-parser": "5.11.2",
+    "next": "16.4.5",
+    "opencc-js": "1.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sanitize-html": "2.18.2",
+    "sirv": "3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/sanitize-html": "^2.16.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.5",
+    "postcss": "^8.5.23",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
+    "prettier": "^3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

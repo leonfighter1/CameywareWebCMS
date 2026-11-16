@@ -1,0 +1,210 @@
+/**
+ * Sending a release out (workflow.ts). Each runs in the CMS's server process after the request that began it, writing
+ * its log to the deployment as it goes.
+ *
+ *   preview     the release → deploy/preview/content.json; the website built with it (CMS_CONTENT) in a folder of its own
+ *               (NEXT_DIST_DIR=.cms-build/preview), then swapped into the folder 禄命秘解's server serves as
+ *               preview.cameyware.com (the website's out/). A failed build leaves preview as it was. 禄命秘解's npm run all
+ *               builds from the same file, so a restart there keeps it.
+ *   production  the release → the website's content/site.json, committed alone and pushed to GitHub's main (C2);
+ *               Cloudflare Pages builds www.cameyware.com from it. Refused when the website's repository is behind
+ *               GitHub or holds commits of code not pushed yet: those are a developer's to push, not the CMS's.
+ *   cms         the website built in CMS mode (NEXT_PUBLIC_CMS=on) into deploy/cms/site, which the CMS's preview server
+ *               serves: needed after the website's code changes, never after content (that comes live).
+ */
+import { spawn } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { db } from "./db";
+import { deployDir, siteRepo } from "./paths";
+import { buildContent } from "./store";
+import {
+  appendLog,
+  beginDeployment,
+  type Env,
+  finishDeployment,
+  markDeployed,
+  releaseContent,
+} from "./workflow";
+
+const win = process.platform === "win32";
+
+/** [cmd] in [cwd]; its output goes to [log]; resolves with its exit code. */
+function run(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  env: Record<string, string>,
+  log: (s: string) => void,
+): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, shell: win });
+    child.stdout.on("data", (d: Buffer) => log(d.toString()));
+    child.stderr.on("data", (d: Buffer) => log(d.toString()));
+    child.on("error", (e) => {
+      log(`\n${e.message}\n`);
+      resolve(1);
+    });
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+}
+
+/** git in the website's repository: its output, or a refusal with it. */
+async function git(args: string[], log: (s: string) => void): Promise<string> {
+  let out = "";
+  const code = await run("git", args, siteRepo(), {}, (s) => {
+    out += s;
+    log(s);
+  });
+  if (code !== 0) throw new Error(`git ${args.join(" ")} failed (${code})`);
+  return out.trim();
+}
+
+/** Renames [from] to [to], a few times over: on Windows a folder being read is briefly locked. */
+async function renameRetrying(from: string, to: string) {
+  for (let i = 0; ; i++) {
+    try {
+      return renameSync(from, to);
+    } catch (e) {
+      if (i >= 20) throw e;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+}
+
+/** The website built with [content] into [distDir] (inside its repository), [env] on top. */
+async function buildSite(
+  contentFile: string,
+  distDir: string,
+  env: Record<string, string>,
+  log: (s: string) => void,
+) {
+  rmSync(join(siteRepo(), distDir), { recursive: true, force: true });
+  log(`npx next build (CMS_CONTENT=${contentFile}, NEXT_DIST_DIR=${distDir})\n`);
+  const code = await run(
+    win ? "npx.cmd" : "npx",
+    ["next", "build"],
+    siteRepo(),
+    { CMS_CONTENT: contentFile, NEXT_DIST_DIR: distDir, ...env },
+    log,
+  );
+  if (code !== 0 || !existsSync(join(siteRepo(), distDir, "index.html")))
+    throw new Error(`网站构建失败（${code}）`);
+}
+
+type Pg = Awaited<ReturnType<typeof db>>;
+
+/** A release's content as [env] carries it: its environment and the release it is. */
+async function contentFor(pg: Pg, release: number, env: Env, by: string) {
+  const content = await releaseContent(pg, release);
+  return { ...content, environment: env, release: { id: release, at: new Date().toISOString(), by } };
+}
+
+async function toPreview(pg: Pg, release: number, by: string, log: (s: string) => void) {
+  const content = await contentFor(pg, release, "preview", by);
+  const file = deployDir("preview", "content.json");
+  mkdirSync(deployDir("preview"), { recursive: true });
+  writeFileSync(file, JSON.stringify(content, null, 2) + "\n");
+  await buildSite(file, ".cms-build/preview", {}, log);
+  const out = join(siteRepo(), "out");
+  const old = join(siteRepo(), `out.old-${Date.now()}`);
+  if (existsSync(out)) await renameRetrying(out, old);
+  await renameRetrying(join(siteRepo(), ".cms-build", "preview"), out);
+  rmSync(old, { recursive: true, force: true });
+  log("\n预览站已换成这一版（preview.cameyware.com）。\n");
+}
+
+async function toProduction(pg: Pg, release: number, by: string, log: (s: string) => void) {
+  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"], log);
+  if (branch !== "main") throw new Error(`官网仓库现在在 ${branch} 分支上，要在 main 上才能推到正式站`);
+  await git(["fetch", "origin", "main"], log);
+  const behind = Number(await git(["rev-list", "--count", "HEAD..origin/main"], log));
+  if (behind) throw new Error(`官网仓库落后 GitHub ${behind} 个提交：先拉取（git pull），再推到正式站`);
+  const ahead = await git(["rev-list", "origin/main..HEAD"], log);
+  if (ahead)
+    throw new Error("官网仓库里有还没推送的代码提交：请开发人员先推送，再推到正式站（CMS 只推送内容）");
+  const content = await contentFor(pg, release, "production", by);
+  writeFileSync(join(siteRepo(), "content", "site.json"), JSON.stringify(content, null, 2) + "\n");
+  const changed = await git(["status", "--porcelain", "--", "content/site.json"], log);
+  if (!changed) {
+    log("\n正式站已经是这一版的内容，不需要提交。\n");
+    return;
+  }
+  await git(["add", "--", "content/site.json"], log);
+  await git(["commit", "-m", `Content: release ${release} (${by})`, "--", "content/site.json"], log);
+  await git(["push", "origin", "HEAD:main"], log);
+  log("\n已推送到 GitHub；Cloudflare Pages 会在几分钟内构建并上线 www.cameyware.com。\n");
+}
+
+/** The CMS's own preview: the website in CMS mode, with what is checked in now as its starting content. */
+export async function buildCmsSite(log: (s: string) => void = (s) => process.stdout.write(s)) {
+  const pg = await db();
+  const file = deployDir("cms", "content.json");
+  mkdirSync(deployDir("cms"), { recursive: true });
+  writeFileSync(file, JSON.stringify(await buildContent(pg, "checked_in"), null, 2) + "\n");
+  await buildSite(file, ".cms-build/cms", { NEXT_PUBLIC_CMS: "on" }, log);
+  const target = deployDir("cms", "site");
+  rmSync(target, { recursive: true, force: true });
+  cpSync(join(siteRepo(), ".cms-build", "cms"), target, { recursive: true });
+  rmSync(join(siteRepo(), ".cms-build", "cms"), { recursive: true, force: true });
+  log(`\nCMS 预览站已构建：${target}\n`);
+}
+
+const building = globalThis as unknown as { cmsSiteBuild?: Promise<void> };
+
+/** The CMS's preview built in the background, once at a time: false when a build is running already. */
+export function startCmsSiteBuild(): boolean {
+  if (building.cmsSiteBuild) return false;
+  building.cmsSiteBuild = buildCmsSite()
+    .catch((e) => console.error(e))
+    .finally(() => (building.cmsSiteBuild = undefined));
+  return true;
+}
+
+export const cmsSiteBuilding = () => !!building.cmsSiteBuild;
+
+/**
+ * Sends [release] to [env], in the background: the deployment's id at once, its log and its end in the database.
+ * [runner] is for tests (no build, no git).
+ */
+export async function deploy(
+  env: Env,
+  release: number,
+  by: string,
+  runner?: (log: (s: string) => void) => Promise<void>,
+) {
+  const pg = await db();
+  const id = await beginDeployment(pg, env, release, by);
+  let pendingLog = "";
+  let flushing: Promise<void> = Promise.resolve();
+  const log = (s: string) => {
+    pendingLog += s;
+    flushing = flushing.then(async () => {
+      const text = pendingLog;
+      pendingLog = "";
+      if (text) await appendLog(pg, id, text);
+    });
+  };
+  const work = runner
+    ? runner(log)
+    : env === "preview"
+      ? toPreview(pg, release, by, log)
+      : toProduction(pg, release, by, log);
+  const done = work.then(
+    async () => {
+      await flushing;
+      await markDeployed(pg, env, release, by);
+      await finishDeployment(pg, id, true, pendingLog);
+    },
+    async (e: unknown) => {
+      await flushing;
+      await finishDeployment(
+        pg,
+        id,
+        false,
+        `${pendingLog}\n失败：${e instanceof Error ? e.message : String(e)}\n`,
+      );
+    },
+  );
+  return { id, done };
+}

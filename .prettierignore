@@ -1,0 +1,9 @@
+node_modules
+.next
+package-lock.json
+src/generated
+data
+deploy
+seed
+test-results
+docs/agent

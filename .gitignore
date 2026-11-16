@@ -1,0 +1,17 @@
+# Dependencies and builds
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# The CMS's database and what it writes on this computer: never in the repository
+data/
+deploy/
+.env
+.env.*
+
+# Tests
+test-results/
+playwright-report/
+coverage/
