@@ -31,8 +31,8 @@ export default async function BuiltinPage({ params }: { params: Promise<{ type: 
           .map((c) => ({
             id: c.id,
             name: c.name || c.id,
-            drawn: !c.template,
-            onPage: live.some((p) => p.blocks.includes(c.id)),
+            drawn: live.some((p) => p.blocks.some((b) => b.id === c.id && !b.style)),
+            onPage: live.some((p) => p.blocks.some((b) => b.id === c.id)),
           }))}
         preview={previewBase(await host())}
       />

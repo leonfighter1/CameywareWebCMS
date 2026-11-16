@@ -22,9 +22,12 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
 1. **The website stays the only renderer.** A block type is a view in the website (`src/cms/views.tsx`) and an entry in
    its catalog (`cms/types.json`); this CMS only edits and checks data of that shape. A new type: the website first, then
    `npm run sync` here. A template (组件样式, S3) is data too: markup the website's `src/cms/template.ts` defines and its
-   `template-view.tsx` draws; this CMS checks it with that file's `checkTemplate`, never a grammar of its own.
+   `template-view.tsx` draws; this CMS checks it with that file's `checkTemplate`, never a grammar of its own. A page
+   layout (S4) likewise: the built-ins and their zones are the website's `src/cms/layouts.ts`; a CMS layout is template
+   markup with `Zone` elements (`checkTemplate(…, { layout: true })`). A page's blocks are placements `{id, zone, style?}`
+   (`src/lib/pages.ts`): the style belongs to the place on the page, never to the component.
 2. **One source for each fact.** `src/generated` comes from `npm run sync` (the website's content model, catalog and
-   template markup, 禄命秘解's `config/addresses.json`); never edit it by hand. The 繁體 conversion has one home (`src/lib/hant.ts`).
+   template markup, the layouts, 禄命秘解's `config/addresses.json`); never edit it by hand. The 繁體 conversion has one home (`src/lib/hant.ts`).
 3. **Its own database** (the owner, 2026-11-15): PGlite in `data/` (git-ignored), never 禄命秘解's. One process opens it:
    the Next server. Anything else asks that server over HTTP (the preview server does); a script that opens the
    database refuses while the CMS runs.
@@ -32,9 +35,9 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
    one-time code. No password, no account here. `content` edits, checks in and pushes to preview; 管理员 and 超级管理员
    push to production.
 5. **A file is changed only by whoever checked it out** (S2, the owner, 2026-11-15; since S3 a page, a block, a template,
-   a global, or a resource bundle: the UI texts of one namespace, T2): every save goes through
+   a global, or a resource bundle: the UI texts of one namespace, T2; since S4 a layout too): every save goes through
    `mustHold` (`src/lib/files.ts`); a file checked in is locked in the workflow until it leaves it. A page takes its new
-   blocks, a block its new template, along at every step (`withTheirParts`). Production is each
+   blocks, styles and CMS layout along at every step (`newPartsOf`, `withTheirParts`). Production is each
    file's `prod_revision_id`; preview is production with the files at 预览站; the CMS's 已签入 is production with every
    workflow file. A step that builds moves its files only once the build succeeded (deploy()'s onSuccess). 推到正式站
    commits `content/site.json` alone on top of GitHub's main, from a temporary worktree, and pushes it (C2): a
@@ -53,13 +56,15 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
 
 ## Map
 
-- `src/lib`: the database (`db.ts`), the catalog's check, the working copy (`store.ts`, templates included), files'
+- `src/lib`: the database (`db.ts`), the catalog's check, the working copy (`store.ts`, templates and layouts included),
+  placements and migration 4's page upgrade (`pages.ts`), files'
   states (`files.ts`), resource bundles (`bundles.ts`, migration 3's merge), the workflow's steps and versions
   (`workflow.ts`), releases, environments and deployments (`releases.ts`), deploying (`deploy.ts`), download and upload
   (`transfer.ts`), sign-in (`auth.ts`), the first content (`seed.ts`), the two languages (`words.ts`), what pages hand
   their client parts (`present.ts`), JSON compared (`json.ts`)
 - `src/app`: the explorer (`page.tsx`, `explorer.tsx`: the tree, each folder's files, who is doing what), the editors
-  (pages, components, templates and each type's built-in one, globals, bundles), 我的文件 (`mine`), 工作流
+  (pages: Bell's page editor with the palette, rows, the place dialog, the style browser and Metadata; components,
+  templates and each type's built-in one, layouts and the built-in ones, globals, bundles), 我的文件 (`mine`), 工作流
   (`workflow`); `actions.ts` every change (server actions); routes for sign-in, the preview's live content and downloads
 - `src/components`: the shell, the fields' form, a file's state and its bar (`files.tsx`), a list of files
   (`file-table.tsx`)

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { Frame } from "@/components/frame";
 import { fieldsOf, ICONS, TYPES } from "@/lib/catalog";
 import { descriptionIn, labelIn } from "@/lib/labels";
@@ -42,6 +43,7 @@ export default async function ComponentPage({
     label: `${(lang === "en" ? w.name?.en : w.name?.zh) ?? w.slug} (${w.slug})`,
   }));
   const def = TYPES[c.type];
+  const builtin = (await getTranslations("component"))("builtin");
   return (
     <Frame>
       <ComponentEditor
@@ -49,20 +51,21 @@ export default async function ComponentPage({
         me={user.login}
         file={file}
         versions={past.map((v) => versionView(v, lang))}
-        component={{
-          id: c.id,
-          type: c.type,
-          name: c.name,
-          template: c.template,
-          data: c.data,
-          deleted: c.deleted,
-        }}
-        templates={templates.filter((x) => !x.deleted).map((x) => ({ id: x.id, name: x.name }))}
+        component={{ id: c.id, type: c.type, name: c.name, data: c.data, deleted: c.deleted }}
         typeLabel={def ? labelIn(def, lang) : c.type}
         typeHelp={def ? descriptionIn(def, lang) : ""}
         fields={fieldsOf(c.type)}
         ctx={{ works: items, icons: ICONS }}
-        pages={pages.map((p) => ({ id: p.id, path: p.path }))}
+        pages={pages.flatMap((p) =>
+          p.blocks
+            .filter((b) => b.id === id)
+            .map((b) => ({
+              id: p.id,
+              path: p.path,
+              zone: b.zone,
+              style: b.style ? (templates.find((x) => x.id === b.style)?.name ?? b.style) : builtin,
+            })),
+        )}
         preview={
           shownOn
             ? `${preview}/${lang === "en" ? "en" : "zh"}${shownOn.path}?view=draft#${c.data.anchor ?? ""}`

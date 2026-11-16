@@ -46,8 +46,8 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
           .map((c) => ({
             id: c.id,
             name: c.name || c.id,
-            drawn: c.template === id,
-            onPage: live.some((p) => p.blocks.includes(c.id)),
+            drawn: live.some((p) => p.blocks.some((b) => b.id === c.id && b.style === id)),
+            onPage: live.some((p) => p.blocks.some((b) => b.id === c.id)),
           }))}
         preview={previewBase(await host())}
       />

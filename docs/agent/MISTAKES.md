@@ -15,8 +15,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 8. After stopping the CMS, check that 8790 and 8791 are free; stop what still holds them by the port's owner.
 9. Never round-trip a source file through Get-Content / Set-Content in Windows PowerShell: rename with the Edit tool or
    node; if it happens, undo it with the 1252 round trip, not git checkout.
+10. In Playwright, wait for a control inside a Mantine Modal or Drawer, never for the modal's own data-testid
 
 ## Log
+
+### 2026-11-16: A browser walk waited on a Mantine Modal's data-testid
+- **Symptom:** locator.waitFor timed out: the style browser's data-testid resolved to a hidden mantine-Modal-root, though the dialog was open on screen
+- **Root cause:** Mantine puts data-testid on the modal's root, a wrapper with no box of its own (the overlay and content are fixed inside it), so Playwright never sees it as visible
+- **Fix:** the walk waits for a control inside the dialog (style-pick, source-shared) instead
+- **Rule:** In Playwright, wait for a control inside a Mantine Modal or Drawer, never for the modal's own data-testid (Rule 10)
 
 ## 1. An else after a for-if binds to the if inside the loop
 

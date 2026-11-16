@@ -145,6 +145,42 @@ checks a template against the type's fields and the bundles' keys before saving;
 | WP19 | The explorer as the central page: the tree, each folder's files (name, state, template or uses, modified, by, versions), filters and the steps on what is ticked; the root shows who is doing what                                           |
 | WP20 | Checks: the markup's tests in both repositories, migration 3, bundles and templates in the workflow; every route in both languages; a browser walk                                                                                           |
 
+## S4 Page layouts, components placed in zones, the page as Bell's WebPage (big: CMS v4.0.0, website v2.2.0)
+
+**The owner (2026-11-16), with a screenshot of the support page's narrow FAQ and Bell's `Productivity_Tech.xml` (a
+`WebPage`: `MetaData` with titles per language, `PageLayout` (BRF\PageLayouts\generic-rebrand), breadcrumb and sitemap
+flags; `Components`, each with `ZoneId`, `ZoneIndex`, `ComponentFilePath` (\Content\…\Components\<type>\<name>) and
+`StyleFilePath` (BRF\Component_Styles\<type>\<style>)):**
+
+> 这里还缺少了对于page的layout的添加，比如有landing page layout， 还有homepagelayout 以及article 啊那些。 都要包含基本的
+> header和footer那些， page里的内容是由不同的component组成的， 我给你一个参考案例，你可以看一下，尽量参考这样的xml去搭建
+> 内容。然后 把图片中采用同样宽度大小布局的页面都改大宽度，跟其他页面一样。
+
+**Decisions (asked first, both as recommended):** L1 layouts are CMS files: four built-in ones in the website's code
+(标准 standard: one main zone; 首页 home: a full-width hero zone and the main zone; 落地页 landing: hero, main and a
+full-width action band; 文章 article: a header zone, the main column and a side column), read-only, and new ones written
+in the CMS in the template markup with `<Zone name="…" />`, taken, checked in and versioned like content; every layout is
+drawn inside the site's header and footer. L2 the style is chosen where a component is placed (Bell's `StyleFilePath`):
+a page lists its placements, each a zone, an index, the component and its style; a block's template of S3 moves to its
+placements, and the block editor edits the content alone. The narrow width goes: every page is as wide as the others.
+
+**Then, during the work (2026-11-16), with Bell's page editor's screenshots (a palette of available components; rows,
+each a component card with Content and Style; edit, content source (Use Shared / Create New / Copy From Existing), style
+Browse (styles with their counts and Used in Pages) and delete; a Metadata page-properties dialog):**
+
+> then open the page, you can open view like this, you can drag and drop rows(create new row), and create a new file of
+> component based on the drag and drop, reorder. you can create component and pick avaialbe styles from the files.
+
+WP23 took it: the page editor is Bell's, by drag and drop.
+
+| WP   | What                                                                                                                                                                                                      |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP21 | The website: the built-in layouts and their zones (`src/cms/layouts.ts`), CMS layouts (the markup's `Zone`), pages drawn by layout and zone, a breadcrumb, a page left out of the sitemap; narrow gone    |
+| WP22 | The CMS's model (migration 4): `layouts` and kind `layout`; a page's layout, breadcrumb and sitemap; its blocks as placements {component, zone, style}; S3's block templates moved to their placements    |
+| WP23 | The page editor by zone: the layout chosen, each zone's components in order, a style for each, moved between zones; the layout editor and the built-in layouts' pages; Views/Page layouts in the tree     |
+| WP24 | A page's download and upload as Bell's WebPage (MetaData; Components with ZoneId, ZoneIndex, ComponentFilePath, StyleFilePath), the old form still read; a new layout and new styles go along with a page |
+| WP25 | Checks: the layout markup and zones in both repositories, migration 4, layouts and placements in the workflow, the WebPage round trip; every route in both languages; a browser walk                      |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -169,6 +205,34 @@ checks a template against the type's fields and the bundles' keys before saving;
 | WP18 | done                                         | v3.0.0                 |
 | WP19 | done                                         | v3.0.0                 |
 | WP20 | done                                         | v3.0.0, website v2.1.0 |
+| WP21 | done                                         | website v2.2.0         |
+| WP22 | done                                         | v4.0.0                 |
+| WP23 | done                                         | v4.0.0                 |
+| WP24 | done                                         | v4.0.0                 |
+| WP25 | done                                         | v4.0.0, website v2.2.0 |
+
+## 阶段总结 S4 (v4.0.0, 2026-11-16)
+
+1. **Delivered:** WP21 the website's layouts (`src/cms/layouts.ts`: the four built-ins with their zones and a default
+   breadcrumb, `layoutOf`, `defaultZone`, `zonesOfMarkup`, `crumbsOf`; the markup's layout-only `Zone`; `PageView` by
+   layout and zone, a CMS layout through `TemplateView`; the breadcrumb, `sitemap: false`, `?layout=` on cms-preview;
+   every page at the container's width), website v2.2.0. WP22 migration 4: `layouts`, a page's layout, breadcrumb and
+   sitemap, placements `{id, zone, style?}` (`src/lib/pages.ts`), S3's block templates moved to their placements in
+   every page and page revision; the release's checks per placement. WP23 the page editor (Bell's: the palette dragged
+   into a zone, rows dragged or moved by arrows, the place dialog's Use Shared / Create New / Copy From Existing, the
+   style browser with uses and pages, Metadata), the layout editor with its zones and preview, the built-in layouts'
+   pages, Views/Page layouts in the tree; a page takes its new blocks, styles and layout along at every step. WP24 the
+   WebPage download and upload (MetaData, PageLayout, Components by path, zone, index and style; the old form read).
+   WP25 the checks below.
+2. **Numbers:** CMS 39 unit tests (33 before); website 35 (31 before); every route in both languages; a browser walk
+   with drag and drop on the real database after migration 4.
+3. **Against the plan:** the owner's page-editor screenshots came during the stage; WP23 became Bell's editor by drag and
+   drop instead of a list per zone. The walk found the breadcrumb's home link named by the home page's SEO title (now the
+   menu's word) and the cookie banner covering the editors' preview frames (hidden in a frame on cms-preview only).
+4. **Mistakes:** 10 (a Playwright wait on a Mantine Modal's testid never sees it: wait for a control inside it).
+5. **Next:** the owner's look at the page editor; website v2.1.0 and v2.2.0 must be on GitHub before a page with a CMS
+   layout or a style is pushed to production (without them production ignores layouts and zones and draws every block in
+   its built-in view, one under another); picture upload into the CMS (later).
 
 ## 阶段总结 S3 (v3.0.0, 2026-11-16)
 

@@ -44,17 +44,19 @@ import {
   canonical,
   type Change,
   changeOf,
-  drawnBy,
   forget,
-  getComponent,
   getPage,
   type Kind,
+  laidOutBy,
+  type Placement,
+  styledBy,
   revisionsById,
   usedOn,
   workingStates,
   writeWorking,
 } from "./store";
 import { type Both, CmsError, type Detail, msg } from "./words";
+import { isBuiltinLayout } from "@/generated/layouts";
 
 export type { Item } from "./files";
 
@@ -134,36 +136,44 @@ async function recordCheckin(db: Db, items: Item[], message: string, author: str
   return { checkin, revisions };
 }
 
-/** A page's blocks production lacks (never published, or deleted there). */
-async function newBlocksOf(db: Pg, pageId: string, states: Map<string, FileRow>) {
-  const page = await getPage(db, pageId);
-  const prodIds = (page?.blocks ?? []).flatMap((b) => {
-    const p = states.get(`component:${b}`)?.prod_revision_id;
-    return p ? [p] : [];
-  });
-  const prod = await revisionsById(db, prodIds);
-  return (page?.blocks ?? []).filter((b) => {
-    const r = prod.get(`component:${b}`);
+/** Of [items], those production lacks (never published, or deleted there). */
+async function newOf(db: Pg, items: Item[], states: Map<string, FileRow>) {
+  const prod = await revisionsById(
+    db,
+    items.flatMap((i) => {
+      const p = states.get(keyOf(i))?.prod_revision_id;
+      return p ? [p] : [];
+    }),
+  );
+  return items.filter((i) => {
+    const r = prod.get(keyOf(i));
     return !r || r.deleted;
   });
 }
 
-/** What [i] can't be shown without that production lacks: a page's new blocks, a block's new template. */
+/**
+ * What [i] can't be shown without that production lacks: a page's new blocks, the new templates it places them with,
+ * its new layout.
+ */
 async function newPartsOf(db: Pg, i: Item, states: Map<string, FileRow>): Promise<Item[]> {
-  if (i.kind === "page")
-    return (await newBlocksOf(db, i.id, states)).map((id) => ({ kind: "component" as const, id }));
-  if (i.kind !== "component") return [];
-  const template = (await getComponent(db, i.id))?.template;
-  if (!template) return [];
-  const prodId = states.get(`template:${template}`)?.prod_revision_id;
-  const prod = prodId ? (await revisionsById(db, [prodId])).get(`template:${template}`) : undefined;
-  return !prod || prod.deleted ? [{ kind: "template", id: template }] : [];
+  if (i.kind !== "page") return [];
+  const page = await getPage(db, i.id);
+  if (!page) return [];
+  const parts: Item[] = [
+    ...page.blocks.map((b) => ({ kind: "component" as const, id: b.id })),
+    ...[...new Set(page.blocks.flatMap((b) => (b.style ? [b.style] : [])))].map((id) => ({
+      kind: "template" as const,
+      id,
+    })),
+    ...(isBuiltinLayout(page.layout) ? [] : [{ kind: "layout" as const, id: page.layout }]),
+  ];
+  return newOf(db, parts, states);
 }
 
 /**
- * 签入: [items], every one checked out by [author], into the workflow at 已签入 with [message]. A page brings the new
- * blocks on it, and a block the new template that draws it, that are also [author]'s; a new one someone else holds, or
- * one not coming along, refuses it.
+ * 签入: [items], every one checked out by [author], into the workflow at 已签入 with [message]. A page brings its new
+ * blocks, the new templates it places them with and its new layout that are also [author]'s; a new one someone else
+ * holds, or one not coming along, refuses it.
  */
 export async function checkIn(db: Pg, items: Item[], message: string, author: string): Promise<number> {
   if (!message.trim()) throw new CmsError("errors.checkinMessage");
@@ -183,7 +193,9 @@ export async function checkIn(db: Pg, items: Item[], message: string, author: st
         problems.push(
           part.kind === "template"
             ? msg("errors.templateNotComing", { template: part.id, owner: f?.owner ?? "—" })
-            : msg("errors.blockNotComing", { block: part.id, owner: f?.owner ?? "—" }),
+            : part.kind === "layout"
+              ? msg("errors.layoutNotComing", { layout: part.id, owner: f?.owner ?? "—" })
+              : msg("errors.blockNotComing", { block: part.id, owner: f?.owner ?? "—" }),
         );
     }
   }
@@ -425,13 +437,15 @@ export async function discard(db: Pg, items: Item[], by: string) {
               pages.map((p) => msg("check.usedOn", { path: p.path })),
             );
         }
-        if (i.kind === "template") {
-          const blocks = await drawnBy(tx, i.id);
-          if (blocks.length)
+        if (i.kind === "template" || i.kind === "layout") {
+          const pages = await (i.kind === "template" ? styledBy(tx, i.id) : laidOutBy(tx, i.id));
+          if (pages.length)
             throw new CmsError(
-              "errors.templateInUse",
+              i.kind === "template" ? "errors.templateInUse" : "errors.layoutInUse",
               undefined,
-              blocks.map((b) => msg("check.drawsBlock", { label: b.name || b.id })),
+              pages.map((p) =>
+                msg(i.kind === "template" ? "check.styledOn" : "check.usedOn", { path: p.path }),
+              ),
             );
         }
         await forget(tx, i.kind, i.id);
@@ -491,21 +505,20 @@ export async function versions(db: Pg, kind: Kind, id: string): Promise<Version[
 
 /**
  * A version of a file (yours) as its draft again, for the workflow. Returns what it names that is gone: a page's blocks,
- * a block's template.
+ * their styles, its layout.
  */
 export async function restoreVersion(db: Pg, kind: Kind, id: string, revision: number, by: string) {
   await mustHold(db, kind, id, by);
   const r = (await revisionsById(db, [revision])).get(`${kind}:${id}`);
   if (!r) throw new CmsError("errors.noVersion", { id: revision });
   await writeWorking(db, kind, id, r.deleted ? null : r.data, by);
-  if (r.deleted || (kind !== "page" && kind !== "component")) return [];
-  const template = (r.data as { template?: string }).template;
-  const names =
-    kind === "page"
-      ? (r.data as { blocks: string[] }).blocks.map((b) => `component:${b}`)
-      : template
-        ? [`template:${template}`]
-        : [];
+  if (r.deleted || kind !== "page") return [];
+  const page = r.data as { layout: string; blocks: Placement[] };
+  const names = [
+    ...page.blocks.map((b) => `component:${b.id}`),
+    ...page.blocks.flatMap((b) => (b.style ? [`template:${b.style}`] : [])),
+    ...(isBuiltinLayout(page.layout) ? [] : [`layout:${page.layout}`]),
+  ];
   const work = await workingStates(db);
   return names
     .filter((k) => {

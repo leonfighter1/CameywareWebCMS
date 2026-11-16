@@ -25,6 +25,7 @@ const FOLDERS: Record<FileView["kind"], string> = {
   page: "content/pages",
   component: "content/components",
   template: "views/styles",
+  layout: "views/layouts",
   global: "content/common/globals",
   bundle: "content/common/bundles",
 };

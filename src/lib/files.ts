@@ -13,7 +13,7 @@
 import type { Db } from "./db";
 import { CmsError, type Msg, msg } from "./words";
 
-export type Kind = "page" | "component" | "template" | "global" | "bundle";
+export type Kind = "page" | "component" | "template" | "layout" | "global" | "bundle";
 export type Item = { kind: Kind; id: string };
 export type Status = "available" | "checked_out" | "in_workflow";
 export type Stage = "checked_in" | "preview";
@@ -32,7 +32,7 @@ export interface FileRow {
 
 export const keyOf = (i: Item) => `${i.kind}:${i.id}`;
 /** The kinds in the order lists show them (and a discard undoes them: a page before its blocks, a block before its template). */
-export const KINDS: Kind[] = ["page", "component", "template", "global", "bundle"];
+export const KINDS: Kind[] = ["page", "component", "template", "layout", "global", "bundle"];
 
 const numbers = (r: FileRow): FileRow => ({
   ...r,

@@ -10,6 +10,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { bundleOf } from "./bundles";
 import type { Db } from "./db";
 import { fileStates } from "./files";
+import { placement, upgradePage } from "./pages";
 import { siteRepo } from "./paths";
 import { createRelease } from "./releases";
 import { canonical, listTexts, revisionsAt, workingStates } from "./store";
@@ -45,7 +46,10 @@ export function codeTexts(repo = siteRepo()): Record<string, L10n> {
   return out;
 }
 
-/** The snapshot's pages, blocks and globals into the working copy (by their ids, as the website had them). */
+/**
+ * The snapshot's pages, blocks and globals into the working copy (by their ids, as the website had them): a page of a
+ * snapshot made before layouts gets one (upgradePage), each block its zone and its style as the snapshot has them.
+ */
 export async function importSnapshot(db: Db, content: SiteContent, by: string) {
   for (const p of content.pages) {
     for (const b of p.blocks)
@@ -53,22 +57,44 @@ export async function importSnapshot(db: Db, content: SiteContent, by: string) {
         `insert into components (id, type, name, data, updated_by) values ($1, $2, $3, $4, $5) on conflict (id) do nothing`,
         [b.id, b.type, b.name ?? "", JSON.stringify(b.data), by],
       );
+    const up = upgradePage(
+      { layout: p.layout, spacing: p.spacing, blocks: p.blocks.map((b) => b.id) },
+      (id) => p.blocks.find((b) => b.id === id)?.type,
+      (id) => p.blocks.find((b) => b.id === id)?.template,
+    );
+    const blocks = up.blocks.map((pl, i) => placement({ ...pl, zone: p.blocks[i]?.zone ?? pl.zone }));
     await db.query(
-      `insert into pages (id, path, status, title, description, width, spacing, blocks, updated_by)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `insert into pages (id, path, status, title, description, layout, breadcrumb, sitemap, blocks, updated_by)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         p.id,
         p.path,
         p.status,
         JSON.stringify(p.title),
         JSON.stringify(p.description),
-        p.width ?? "normal",
-        p.spacing ?? "compact",
-        JSON.stringify(p.blocks.map((b) => b.id)),
+        up.layout,
+        p.breadcrumb ?? null,
+        p.sitemap !== false,
+        JSON.stringify(blocks),
         by,
       ],
     );
   }
+  for (const [id, t] of Object.entries(content.templates ?? {}))
+    await db.query(`insert into templates (id, type, name, markup, updated_by) values ($1, $2, $3, $4, $5)`, [
+      id,
+      t.type,
+      t.name,
+      t.markup,
+      by,
+    ]);
+  for (const [id, l] of Object.entries(content.layouts ?? {}))
+    await db.query(`insert into layouts (id, name, markup, updated_by) values ($1, $2, $3, $4)`, [
+      id,
+      l.name,
+      l.markup,
+      by,
+    ]);
   for (const k of GLOBAL_KEYS)
     await db.query(`insert into globals (key, data, updated_by) values ($1, $2, $3)`, [
       k,
@@ -97,6 +123,8 @@ export async function seedIfEmpty(db: PGlite, repo = siteRepo()): Promise<boolea
       { kind: "page" as const, id: p.id },
       ...p.blocks.map((b) => ({ kind: "component" as const, id: b.id })),
     ]),
+    ...Object.keys(content.templates ?? {}).map((id) => ({ kind: "template" as const, id })),
+    ...Object.keys(content.layouts ?? {}).map((id) => ({ kind: "layout" as const, id })),
     ...GLOBAL_KEYS.map((k) => ({ kind: "global" as const, id: k })),
     ...[...new Set(Object.keys(texts).map(bundleOf))].map((id) => ({ kind: "bundle" as const, id })),
   ];

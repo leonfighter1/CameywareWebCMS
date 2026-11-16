@@ -7,33 +7,36 @@ import { labelIn } from "@/lib/labels";
 import { fileHref, fileViews } from "@/lib/present";
 import { environments } from "@/lib/releases";
 import { database, host, language, requireUser } from "@/lib/server";
-import { listComponents, listPages, listTemplates, listTexts } from "@/lib/store";
+import { layoutLabel, listComponents, listLayouts, listPages, listTemplates, listTexts } from "@/lib/store";
 import { files } from "@/lib/workflow";
+import { LAYOUTS } from "@/generated/layouts";
 import { type Entry, Explorer } from "./explorer";
 
 /**
  * The explorer, the CMS's central page (the owner, 2026-11-16, of Bell's CMS.Net: 「content contains files of each type
  * … another component style that also have related matched path with all templates related to this content … a kind of
- * CMS dashboard can view who is doing what」; T3): a fixed tree, 内容 (页面, 组件/<类型>, 公共/资源包, 公共/全局资料) and
- * 视图 (组件样式/<类型>), the content's type folders and the styles' matched by the type; each folder's files with their
- * state, their last change and who made it; at the root, who is doing what.
+ * CMS dashboard can view who is doing what」; T3, S4): a fixed tree, 内容 (页面, 组件/<类型>, 公共/资源包, 公共/全局资料)
+ * and 视图 (组件样式/<类型>, 页面布局), the content's type folders and the styles' matched by the type; each folder's files
+ * with their state, their last change and who made it; at the root, who is doing what.
  */
 export default async function ExplorerPage({ searchParams }: { searchParams: Promise<{ at?: string }> }) {
   const { at = "" } = await searchParams;
   const user = await requireUser();
   const lang = await language();
   const pg = await database();
-  const [pages, comps, templates, texts, all, envs] = await Promise.all([
+  const [pages, comps, templates, layouts, texts, all, envs] = await Promise.all([
     listPages(pg),
     listComponents(pg),
     listTemplates(pg),
+    listLayouts(pg),
     listTexts(pg),
     files(pg),
     environments(pg),
   ]);
   const views = fileViews(all, lang);
   const live = pages.filter((p) => !p.deleted);
-  const names = new Map(templates.map((t) => [t.id, t.name]));
+  const placed = live.flatMap((p) => p.blocks);
+  const typeOf = new Map(comps.map((c) => [c.id, c.type]));
   const entries: Entry[] = [];
   const add = (e: Omit<Entry, "file" | "href">, kind: Parameters<typeof fileHref>[0], id: string) => {
     const file = views[`${kind}:${id}`];
@@ -49,6 +52,7 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
         title: (lang === "en" ? p.title.en : undefined) || p.title.zh || "",
         active: p.status === "active",
         blocks: p.blocks.length,
+        layout: layoutLabel(p.layout, layouts, lang),
       },
       "page",
       p.id,
@@ -59,8 +63,7 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
         key: `component:${c.id}`,
         folder: `content/components/${c.type}`,
         name: c.name || c.id,
-        template: c.template ? (names.get(c.template) ?? c.template) : undefined,
-        pages: live.filter((p) => p.blocks.includes(c.id)).length,
+        pages: live.filter((p) => p.blocks.some((b) => b.id === c.id)).length,
       },
       "component",
       c.id,
@@ -71,8 +74,8 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
       folder: `views/styles/${type}`,
       name: "",
       href: `/templates/builtin/${type}`,
-      builtin: true,
-      blocks: comps.filter((c) => c.type === type && !c.deleted && !c.template).length,
+      builtin: "template",
+      uses: placed.filter((b) => !b.style && typeOf.get(b.id) === type).length,
     });
   for (const t of templates)
     add(
@@ -80,10 +83,30 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
         key: `template:${t.id}`,
         folder: `views/styles/${t.type}`,
         name: t.name,
-        blocks: comps.filter((c) => !c.deleted && c.template === t.id).length,
+        uses: placed.filter((b) => b.style === t.id).length,
       },
       "template",
       t.id,
+    );
+  for (const [name, l] of Object.entries(LAYOUTS))
+    entries.push({
+      key: `builtinLayout:${name}`,
+      folder: "views/layouts",
+      name: lang === "en" ? l.label_en : l.label,
+      href: `/layouts/builtin/${name}`,
+      builtin: "layout",
+      laidOut: live.filter((p) => p.layout === name).length,
+    });
+  for (const l of layouts)
+    add(
+      {
+        key: `layout:${l.id}`,
+        folder: "views/layouts",
+        name: l.name,
+        laidOut: live.filter((p) => p.layout === l.id).length,
+      },
+      "layout",
+      l.id,
     );
   const count = new Map<string, number>();
   for (const t of texts) count.set(bundleOf(t.key), (count.get(bundleOf(t.key)) ?? 0) + 1);
@@ -110,6 +133,10 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
         at={at}
         entries={entries}
         types={Object.entries(TYPES).map(([type, d]) => ({ type, label: labelIn(d, lang) }))}
+        layouts={Object.entries(LAYOUTS).map(([name, l]) => ({
+          name,
+          label: lang === "en" ? l.label_en : l.label,
+        }))}
         preview={previewBase(await host())}
         releases={{ preview: envs.preview.release, production: envs.production.release }}
         building={cmsSiteBuilding()}

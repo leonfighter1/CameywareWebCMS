@@ -51,6 +51,7 @@ import type { FileView } from "@/lib/present";
 import {
   createComponentAction,
   createPageAction,
+  createLayoutAction,
   createTemplateAction,
   discardAction,
   putBackAction,
@@ -67,18 +68,21 @@ export type Entry = {
   file?: FileView;
   /** Shown in monospace: a page's address, a bundle's name. */
   mono?: boolean;
-  /** A page: its title, whether it is active, its blocks. */
+  /** A page: its title, whether it is active, its blocks, its layout's name. */
   title?: string;
   active?: boolean;
-  /** A block: the template that draws it (none: its type's own), the pages it is on. */
-  template?: string;
-  pages?: number;
-  /** A template (or the built-in one): the blocks it draws. */
   blocks?: number;
+  layout?: string;
+  /** A block: the pages it is on. */
+  pages?: number;
+  /** A template (or a type's built-in one): the places on pages that use it. */
+  uses?: number;
+  /** A layout (or a built-in one): the pages in it. */
+  laidOut?: number;
   /** A bundle: its texts. */
   texts?: number;
-  /** A type's built-in view: code, not a file. */
-  builtin?: boolean;
+  /** A type's built-in view, or a built-in page layout: code, not a file. */
+  builtin?: "template" | "layout";
 };
 
 type Type = { type: string; label: string };
@@ -119,6 +123,7 @@ function treeOf(types: Type[], t: T): TreeNodeData[] {
           label: t("tree.styles"),
           children: types.map((x) => ({ value: `views/styles/${x.type}`, label: x.label })),
         },
+        { value: "views/layouts", label: t("tree.layouts") },
       ],
     },
   ];
@@ -143,6 +148,7 @@ export function Explorer({
   at,
   entries,
   types,
+  layouts,
   preview,
   releases,
   building,
@@ -151,6 +157,8 @@ export function Explorer({
   at: string;
   entries: Entry[];
   types: Type[];
+  /** The built-in layouts: where a new one starts from. */
+  layouts: { name: string; label: string }[];
   preview: string;
   releases: { preview?: number; production?: number };
   building: boolean;
@@ -165,7 +173,7 @@ export function Explorer({
     initialSelectedState: [here],
   });
   const files = entries.filter((e) => !e.builtin);
-  // A style folder counts its built-in template too: every type has one.
+  // A style folder counts its built-in template too (every type has one), the layouts' its built-in layouts.
   const count = (folder: string) => entries.filter((e) => within(e.folder, folder)).length;
   const busy = (folder: string) =>
     files.filter((e) => within(e.folder, folder) && e.file && e.file.status !== "available").length;
@@ -256,6 +264,7 @@ export function Explorer({
             entries={entries.filter((e) => e.folder === here)}
             count={count}
             types={types}
+            layouts={layouts}
             all={entries}
             open={open}
           />
@@ -274,6 +283,7 @@ function Folder({
   entries,
   count,
   types,
+  layouts,
   all,
   open,
 }: {
@@ -283,6 +293,7 @@ function Folder({
   entries: Entry[];
   count: (folder: string) => number;
   types: Type[];
+  layouts: { name: string; label: string }[];
   all: Entry[];
   open: (value: string) => void;
 }) {
@@ -359,7 +370,7 @@ function Folder({
           ))}
         </SimpleGrid>
       ) : (
-        <FileList me={me} at={at} type={type} entries={entries} all={all} />
+        <FileList me={me} at={at} type={type} entries={entries} all={all} layouts={layouts} />
       )}
     </Stack>
   );
@@ -375,6 +386,7 @@ const ABOUT = {
   "content/common/globals": "globals",
   views: "views",
   "views/styles": "styles",
+  "views/layouts": "layouts",
 } as const;
 
 function aboutKey(at: string): (typeof ABOUT)[keyof typeof ABOUT] | "componentType" | "styleType" {
@@ -417,12 +429,14 @@ function FileList({
   type,
   entries,
   all,
+  layouts,
 }: {
   me: string;
   at: string;
   type?: string;
   entries: Entry[];
   all: Entry[];
+  layouts: { name: string; label: string }[];
 }) {
   const t = useTranslations("explorer");
   const tf = useTranslations("files");
@@ -479,7 +493,7 @@ function FileList({
   return (
     <Stack gap="sm">
       <Group gap="xs" wrap="wrap" data-testid="toolbar">
-        <NewFile at={at} type={type} all={all} />
+        <NewFile at={at} type={type} all={all} layouts={layouts} />
         <Button
           size="xs"
           disabled={!free.length}
@@ -644,7 +658,7 @@ function FileList({
                         ff={e.mono ? "monospace" : undefined}
                         td={e.file?.deleted ? "line-through" : undefined}
                       >
-                        {e.builtin ? t("builtinName") : e.name}
+                        {e.builtin === "template" ? t("builtinName") : e.name}
                       </Anchor>
                     </Group>
                     {e.title && (
@@ -721,17 +735,20 @@ function FileList({
   );
 }
 
-/** What the list says of a row: a page's state and blocks, a block's template and pages, a template's blocks, a bundle's texts. */
+/**
+ * What the list says of a row: a page's state, layout and blocks; a block's pages; a template's places; a layout's pages;
+ * a bundle's texts.
+ */
 function About({ e, t }: { e: Entry; t: T }) {
   const parts: string[] = [];
   if (e.active !== undefined) parts.push(e.active ? t("active") : t("inactive"));
-  if (e.pages !== undefined) {
-    parts.push(e.template ? t("drawnBy", { name: e.template }) : t("drawnByBuiltin"));
-    parts.push(e.pages ? t("onPages", { n: e.pages }) : t("onNoPage"));
-  } else if (e.blocks !== undefined)
-    parts.push(e.active !== undefined ? t("blocks", { n: e.blocks }) : t("draws", { n: e.blocks }));
+  if (e.layout) parts.push(t("inLayout", { name: e.layout }));
+  if (e.blocks !== undefined) parts.push(t("blocks", { n: e.blocks }));
+  if (e.pages !== undefined) parts.push(e.pages ? t("onPages", { n: e.pages }) : t("onNoPage"));
+  if (e.uses !== undefined) parts.push(t("uses", { n: e.uses }));
+  if (e.laidOut !== undefined) parts.push(t("laidOut", { n: e.laidOut }));
   if (e.texts !== undefined) parts.push(t("texts", { n: e.texts }));
-  if (e.builtin) parts.push(t("builtinAbout"));
+  if (e.builtin) parts.push(t(e.builtin === "layout" ? "builtinLayoutAbout" : "builtinAbout"));
   return (
     <Text size="xs" c="dimmed">
       {parts.join(" · ")}
@@ -741,15 +758,23 @@ function About({ e, t }: { e: Entry; t: T }) {
 
 // ---- new files ---------------------------------------------------------------------------------------------------
 
-/** 新建 for the folder: a page, a block of its type, a template of its type. */
-function NewFile({ at, type, all }: { at: string; type?: string; all: Entry[] }) {
+/** 新建 for the folder: a page, a block of its type, a template of its type, a page layout. */
+function NewFile({
+  at,
+  type,
+  all,
+  layouts,
+}: {
+  at: string;
+  type?: string;
+  all: Entry[];
+  layouts: { name: string; label: string }[];
+}) {
   const t = useTranslations("explorer");
   const router = useRouter();
   const [opened, { open, close }] = useDisclosure();
   const [path, setPath] = useState("/");
   const [name, setName] = useState("");
-  const [from, setFrom] = useState("starter");
-  const [busy, setBusy] = useState(false);
   const what =
     at === "content/pages"
       ? "page"
@@ -757,7 +782,11 @@ function NewFile({ at, type, all }: { at: string; type?: string; all: Entry[] })
         ? "block"
         : at.startsWith("views/styles/")
           ? "template"
-          : undefined;
+          : at === "views/layouts"
+            ? "layout"
+            : undefined;
+  const [from, setFrom] = useState(what === "layout" ? "standard" : "starter");
+  const [busy, setBusy] = useState(false);
   if (!what) return null;
   const copies = all.filter((e) => e.folder === at && !e.builtin && e.file);
   const create = async () => {
@@ -768,6 +797,9 @@ function NewFile({ at, type, all }: { at: string; type?: string; all: Entry[] })
     } else if (what === "block") {
       const r = await createComponentAction(type!, name);
       if (report(r, t("createdBlock"))) router.push(`/components/${r.value}`);
+    } else if (what === "layout") {
+      const r = await createLayoutAction(name, from);
+      if (report(r, t("createdLayout"))) router.push(`/layouts/${r.value}`);
     } else {
       const r = await createTemplateAction(type!, name, from === "starter" ? undefined : from);
       if (report(r, t("createdTemplate"))) router.push(`/templates/${r.value}`);
@@ -798,11 +830,31 @@ function NewFile({ at, type, all }: { at: string; type?: string; all: Entry[] })
             />
           )}
           <TextInput
-            label={what === "page" ? t("titleZh") : what === "block" ? t("blockName") : t("templateName")}
+            label={
+              what === "page"
+                ? t("titleZh")
+                : what === "block"
+                  ? t("blockName")
+                  : what === "layout"
+                    ? t("layoutName")
+                    : t("templateName")
+            }
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             data-autofocus={what !== "page" ? true : undefined}
           />
+          {what === "layout" && (
+            <Radio.Group label={t("startFrom")} value={from} onChange={setFrom}>
+              <Stack gap={6} mt={4}>
+                {layouts.map((l) => (
+                  <Radio key={l.name} value={l.name} label={t("fromBuiltinLayout", { name: l.label })} />
+                ))}
+                {copies.map((c) => (
+                  <Radio key={c.key} value={c.file!.id} label={t("fromCopy", { name: c.name })} />
+                ))}
+              </Stack>
+            </Radio.Group>
+          )}
           {what === "template" && (
             <Radio.Group label={t("startFrom")} value={from} onChange={setFrom}>
               <Stack gap={6} mt={4}>

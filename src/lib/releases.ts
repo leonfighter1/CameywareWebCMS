@@ -8,7 +8,9 @@ import type { PGlite } from "@electric-sql/pglite";
 import type { Db } from "./db";
 import { type FileRow, type Item, keyOf } from "./files";
 import { buildContent, canonical, contentOf, OVERLAYS, revisionsAt, type View } from "./store";
+import type { Placement } from "./pages";
 import { CmsError, type Detail, type Lang, msg, say, type Values } from "./words";
+import { isBuiltinLayout } from "@/generated/layouts";
 
 export type Env = "preview" | "production";
 
@@ -20,20 +22,21 @@ export type Env = "preview" | "production";
 export async function createRelease(db: Db, author: string, note: string, overlay: (f: FileRow) => boolean) {
   const revisions = await revisionsAt(db, overlay);
   const missing: Detail[] = [];
+  const gone = (key: string) => {
+    const r = revisions.get(key);
+    return !r || r.deleted;
+  };
   for (const r of revisions.values()) {
     if (r.kind !== "page" || r.deleted) continue;
-    const p = r.data as { path: string; status: string; blocks: string[] };
+    const p = r.data as { path: string; status: string; layout: string; blocks: Placement[] };
     if (p.status !== "active") continue;
+    if (!isBuiltinLayout(p.layout) && gone(`layout:${p.layout}`))
+      missing.push(msg("errors.layoutMissingAt", { path: p.path, layout: p.layout }));
     for (const b of p.blocks) {
-      const c = revisions.get(`component:${b}`);
-      if (!c || c.deleted) {
-        missing.push(msg("errors.blockMissingAt", { path: p.path, block: b }));
-        continue;
-      }
-      const template = (c.data as { template?: string }).template;
-      const t = template ? revisions.get(`template:${template}`) : undefined;
-      if (template && (!t || t.deleted))
-        missing.push(msg("errors.templateMissingAt", { path: p.path, block: b, template }));
+      if (gone(`component:${b.id}`))
+        missing.push(msg("errors.blockMissingAt", { path: p.path, block: b.id }));
+      if (b.style && gone(`template:${b.style}`))
+        missing.push(msg("errors.templateMissingAt", { path: p.path, block: b.id, template: b.style }));
     }
   }
   if (missing.length) throw new CmsError("errors.releaseIncomplete", undefined, missing);
@@ -280,6 +283,8 @@ export async function diff(db: Db, from: number | undefined, to: number | Exclud
       m.set(`text:${k}`, { kind: "text", name: k, value: canonical(v) });
     for (const [k, v] of Object.entries(c.templates ?? {}))
       m.set(`template:${k}`, { kind: "template", name: v.name, value: canonical(v) });
+    for (const [k, v] of Object.entries(c.layouts ?? {}))
+      m.set(`layout:${k}`, { kind: "layout", name: v.name, value: canonical(v) });
     return m;
   };
   const [x, y] = [flat(a), flat(b)];

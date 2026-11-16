@@ -11,24 +11,33 @@ import { type Item, putBack, take } from "@/lib/files";
 import { toHant } from "@/lib/hant";
 import { attempt, database, editor, publisher } from "@/lib/server";
 import { fieldsOf } from "@/lib/catalog";
+import { starterLayout } from "@/lib/pages";
 import {
   createComponent,
+  createLayout,
   createPage,
   createTemplate,
   deleteComponent,
+  deleteLayout,
   deletePage,
   deleteTemplate,
+  getComponent,
+  getLayout,
   getPage,
   getTemplate,
   type Kind,
-  type PageRow,
+  layoutProblems,
+  type PageChange,
+  type Placement,
   saveComponent,
   saveGlobal,
+  saveLayout,
   savePage,
   saveTemplate,
   saveText,
   templateProblems,
 } from "@/lib/store";
+import { isBuiltinLayout } from "@/generated/layouts";
 import { importDoc, parseUpload } from "@/lib/transfer";
 import {
   backToCheckIn,
@@ -56,7 +65,8 @@ export async function createPageAction(path: string, title: L10n) {
   });
 }
 
-export async function savePageAction(id: string, page: Partial<PageRow>) {
+/** A page's settings (its address, its state, its words, its layout, breadcrumb and sitemap). */
+export async function savePageAction(id: string, page: Omit<PageChange, "blocks">) {
   return attempt(async () => {
     const user = await editor();
     await savePage(await database(), id, page, user.login);
@@ -72,10 +82,24 @@ export async function deletePageAction(id: string) {
   });
 }
 
-/** A block onto [pageId]: a new one of [type], or [existing] (a component already made), at [at] (the end by default). */
-export async function addBlockAction(
+/**
+ * A component placed on [pageId] (the page editor's rows, after Bell's Component Attributes: 「Use Shared / Create New /
+ * Copy From Existing」): [existing] (shared), a new one of [type] named [name], or a copy of [copyOf]'s content; in [zone]
+ * with [style]; at [at] (before the place there; the end of the zone when left out), or in place of the place at
+ * [replace] (its zone and style kept unless given).
+ */
+export async function placeBlockAction(
   pageId: string,
-  o: { type?: string; existing?: string; name?: string; at?: number },
+  o: {
+    existing?: string;
+    type?: string;
+    name?: string;
+    copyOf?: string;
+    zone: string;
+    style?: string;
+    at?: number;
+    replace?: number;
+  },
 ) {
   return attempt(async () => {
     const user = await editor();
@@ -83,9 +107,20 @@ export async function addBlockAction(
     const page = await getPage(pg, pageId);
     if (!page) throw new CmsError("errors.noPage");
     return pg.transaction(async (tx) => {
-      const id = o.existing ?? (await createComponent(tx, o.type ?? "", o.name ?? "", user.login));
+      let id = o.existing;
+      if (!id && o.copyOf) {
+        const source = await getComponent(tx, o.copyOf);
+        if (!source || source.deleted) throw new CmsError("errors.noBlock");
+        id = await createComponent(tx, source.type, o.name || source.name, user.login, source.data);
+      }
+      id ??= await createComponent(tx, o.type ?? "", o.name ?? "", user.login);
       const blocks = [...page.blocks];
-      blocks.splice(o.at ?? blocks.length, 0, id);
+      const next = { id, zone: o.zone, style: o.style };
+      if (o.replace !== undefined && blocks[o.replace]) blocks[o.replace] = next;
+      else {
+        const last = blocks.map((b) => b.zone).lastIndexOf(o.zone);
+        blocks.splice(o.at ?? (last < 0 ? blocks.length : last + 1), 0, next);
+      }
       await savePage(tx, pageId, { blocks }, user.login);
       done();
       return id;
@@ -93,8 +128,8 @@ export async function addBlockAction(
   });
 }
 
-/** [pageId]'s blocks in a new order, or with one left out. */
-export async function setBlocksAction(pageId: string, blocks: string[]) {
+/** [pageId]'s placements: in a new order, in other zones, with other styles, or with one left out. */
+export async function setBlocksAction(pageId: string, blocks: Placement[]) {
   return attempt(async () => {
     const user = await editor();
     await savePage(await database(), pageId, { blocks }, user.login);
@@ -102,11 +137,47 @@ export async function setBlocksAction(pageId: string, blocks: string[]) {
   });
 }
 
-/** A block's name, data and template ("" its type's own view; left out, as it is). */
-export async function saveComponentAction(id: string, name: string, data: unknown, template?: string) {
+/** A block's name and data (its style is chosen where a page places it). */
+export async function saveComponentAction(id: string, name: string, data: unknown) {
   return attempt(async () => {
     const user = await editor();
-    await saveComponent(await database(), id, { name, data, template }, user.login);
+    await saveComponent(await database(), id, { name, data }, user.login);
+    done();
+  });
+}
+
+/** A new page layout: a copy of [from] (a CMS layout's id, or a built-in one's starting markup), yours. */
+export async function createLayoutAction(name: string, from: string) {
+  return attempt(async () => {
+    const user = await editor();
+    const pg = await database();
+    const source = isBuiltinLayout(from) ? undefined : await getLayout(pg, from);
+    const id = await createLayout(pg, name, source?.markup ?? starterLayout(from), user.login);
+    done();
+    return id;
+  });
+}
+
+export async function saveLayoutAction(id: string, name: string, markup: string) {
+  return attempt(async () => {
+    const user = await editor();
+    await saveLayout(await database(), id, { name, markup }, user.login);
+    done();
+  });
+}
+
+/** [markup]'s problems as a page layout, said in the reader's language, without saving it. */
+export async function checkLayoutAction(markup: string) {
+  return attempt(async (lang) => {
+    await editor();
+    return sayAll(await layoutProblems(await database(), markup), lang);
+  });
+}
+
+export async function deleteLayoutAction(id: string) {
+  return attempt(async () => {
+    const user = await editor();
+    await deleteLayout(await database(), id, user.login);
     done();
   });
 }

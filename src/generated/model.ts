@@ -84,13 +84,22 @@ export interface Block {
   id: string;
   type: string;
   name?: string;
+  /** Its style where the page places it (a CMS template's id); none: its type's own view. */
   template?: string;
+  /** The zone of the page's layout it stands in (layouts.ts); none: the layout's main zone. */
+  zone?: string;
   data: Record<string, unknown>;
 }
 
 /** A look for the blocks of [type], written in the CMS (template.ts): a component style. */
 export interface Template {
   type: string;
+  name: string;
+  markup: string;
+}
+
+/** A page layout written in the CMS: template markup with a Zone for each zone (layouts.ts). */
+export interface Layout {
   name: string;
   markup: string;
 }
@@ -102,9 +111,16 @@ export interface Page {
   status: "active" | "inactive";
   title: L10n;
   description: L10n;
-  /** How wide its content is, and how much room above and below it. */
+  /** Its layout: a built-in one's name or a CMS layout's id (layouts.ts `layoutOf` when none). */
+  layout?: string;
+  /** A breadcrumb under the header: shown or not; the layout's choice when left out. */
+  breadcrumb?: boolean;
+  /** false: left out of the sitemap. */
+  sitemap?: boolean;
+  /** Made before layouts: roomy chose 首页; the width is the same for every page now. */
   width?: "normal" | "narrow";
   spacing?: "compact" | "roomy";
+  /** Its components in order, each in its zone with its style. */
   blocks: Block[];
 }
 
@@ -167,6 +183,8 @@ export interface SiteContent {
   texts: Record<string, L10n>;
   /** The CMS's templates by id, as the blocks name them (none in a snapshot made before them). */
   templates?: Record<string, Template>;
+  /** The CMS's page layouts by id, as the pages name them (the built-in ones are code: layouts.ts). */
+  layouts?: Record<string, Layout>;
 }
 
 /** Paths the code's own pages and the server hold: no CMS page may take one. */

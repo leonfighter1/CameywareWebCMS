@@ -1,20 +1,7 @@
 "use client";
-import {
-  Alert,
-  Anchor,
-  Button,
-  Card,
-  Grid,
-  Group,
-  Menu,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Alert, Anchor, Button, Card, Grid, Group, Menu, Stack, Text, TextInput, Title } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { IconArrowBack, IconDownload, IconExternalLink, IconTemplate } from "@tabler/icons-react";
+import { IconArrowBack, IconDownload, IconExternalLink } from "@tabler/icons-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -26,9 +13,10 @@ import type { Field } from "@/lib/catalog";
 import type { FileView, VersionView } from "@/lib/present";
 import { deleteComponentAction, saveComponentAction } from "../../actions";
 
-/** The template select's value for the type's own view (a block that names no template). */
-const BUILTIN = "builtin";
-
+/**
+ * A block's editor: its content alone (its name and fields); where it stands, in which zone and style, is each page's
+ * (the page editor), listed here.
+ */
 export function ComponentEditor({
   me,
   file,
@@ -39,28 +27,19 @@ export function ComponentEditor({
   fields,
   ctx,
   pages,
-  templates,
   preview,
   back,
 }: {
   me: string;
   file: FileView;
   versions: VersionView[];
-  component: {
-    id: string;
-    type: string;
-    name: string;
-    template: string | null;
-    data: Record<string, unknown>;
-    deleted: boolean;
-  };
+  component: { id: string; type: string; name: string; data: Record<string, unknown>; deleted: boolean };
   typeLabel: string;
   typeHelp: string;
   fields: Field[];
   ctx: Context;
-  pages: { id: string; path: string }[];
-  /** The type's templates (组件样式) a block may take. */
-  templates: { id: string; name: string }[];
+  /** The pages it stands on: each place's zone and style. */
+  pages: { id: string; path: string; zone: string; style: string }[];
   preview?: string;
   back?: string;
 }) {
@@ -69,13 +48,11 @@ export function ComponentEditor({
   const mine = isMine(file, me);
   const [name, setName] = useState(component.name);
   const [data, setData] = useState(component.data);
-  const [template, setTemplate] = useState(component.template ?? BUILTIN);
   const [busy, setBusy] = useState(false);
   const [frame, setFrame] = useState(0);
   const save = async () => {
     setBusy(true);
-    const chosen = template === BUILTIN ? "" : template;
-    const ok = report(await saveComponentAction(component.id, name, data, chosen), t("saved"));
+    const ok = report(await saveComponentAction(component.id, name, data), t("saved"));
     setBusy(false);
     if (ok) {
       router.refresh();
@@ -138,33 +115,6 @@ export function ComponentEditor({
                     value={name}
                     onChange={(e) => setName(e.currentTarget.value)}
                   />
-                  <Group align="flex-end" gap="xs" wrap="nowrap">
-                    <Select
-                      label={t("template")}
-                      description={t("templateHelp")}
-                      data={[
-                        { value: BUILTIN, label: t("builtin") },
-                        ...templates.map((x) => ({ value: x.id, label: x.name })),
-                      ]}
-                      value={template}
-                      onChange={(v) => setTemplate(v ?? BUILTIN)}
-                      allowDeselect={false}
-                      style={{ flex: 1 }}
-                      data-testid="template-select"
-                    />
-                    <Button
-                      component={Link}
-                      href={
-                        template === BUILTIN
-                          ? `/templates/builtin/${component.type}`
-                          : `/templates/${encodeURIComponent(template)}`
-                      }
-                      variant="default"
-                      leftSection={<IconTemplate size={14} />}
-                    >
-                      {t("openTemplate")}
-                    </Button>
-                  </Group>
                   <FieldsEditor fields={fields} value={data} onChange={setData} ctx={ctx} />
                   <Group justify="space-between">
                     <Group gap="xs">
@@ -201,13 +151,18 @@ export function ComponentEditor({
               {t("usedOn")}
             </Title>
             {pages.length ? (
-              <Group>
-                {pages.map((p) => (
-                  <Anchor key={p.id} component={Link} href={`/pages/${p.id}`} ff="monospace" size="sm">
-                    {p.path}
-                  </Anchor>
+              <Stack gap={4}>
+                {pages.map((p, i) => (
+                  <Group key={`${p.id}:${i}`} gap="xs">
+                    <Anchor component={Link} href={`/pages/${p.id}`} ff="monospace" size="sm">
+                      {p.path}
+                    </Anchor>
+                    <Text size="xs" c="dimmed">
+                      {t("placedAs", { zone: p.zone, style: p.style })}
+                    </Text>
+                  </Group>
                 ))}
-              </Group>
+              </Stack>
             ) : (
               <Text size="sm" c="dimmed">
                 {t("unused")}

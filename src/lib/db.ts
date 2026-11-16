@@ -7,6 +7,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { bundlesFromTexts } from "./bundles";
+import { pagesToLayouts } from "./pages";
 
 export type Db = PGlite | Transaction;
 
@@ -156,6 +157,34 @@ export const MIGRATIONS: (string | ((tx: Transaction) => Promise<void>))[] = [
       alter table items drop constraint items_kind_check;
       alter table items add constraint items_kind_check
         check (kind in ('page', 'component', 'global', 'bundle', 'template'));`);
+  },
+  // S4 (the owner, 2026-11-16: page layouts, a page's components in zones, Bell's WebPage): layouts are files (L1); a
+  // page has a layout, a breadcrumb and a sitemap switch, and its blocks are placements with their style (L2), the
+  // block's template of S3 moved there (pages.ts); the width and the spacing go (every page is as wide).
+  async (tx: Transaction) => {
+    await tx.exec(`
+      create table layouts (
+        id text primary key,
+        name text not null default '',
+        markup text not null default '',
+        deleted boolean not null default false,
+        updated_at timestamptz not null default now(),
+        updated_by text not null default ''
+      );
+      alter table revisions drop constraint revisions_kind_check;
+      alter table revisions add constraint revisions_kind_check
+        check (kind in ('page', 'component', 'global', 'text', 'bundle', 'template', 'layout'));
+      alter table items drop constraint items_kind_check;
+      alter table items add constraint items_kind_check
+        check (kind in ('page', 'component', 'global', 'bundle', 'template', 'layout'));
+      alter table pages add column layout text not null default 'standard';
+      alter table pages add column breadcrumb boolean;
+      alter table pages add column sitemap boolean not null default true;`);
+    await pagesToLayouts(tx);
+    await tx.exec(`
+      alter table pages drop column width;
+      alter table pages drop column spacing;
+      alter table components drop column template;`);
   },
 ];
 

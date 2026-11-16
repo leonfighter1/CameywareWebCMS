@@ -210,7 +210,8 @@ const hasRef = (parts: Part[]) => parts.some((p) => typeof p !== "string");
 /**
  * What an attribute takes: a token of [values], or a whole number in [int] (a decimal in [dec], a percentage with
  * [pct]), per breakpoint with [responsive] ("1 sm:2 md:3"); text; a link or an image's address (LINK); a switch; the name
- * of a field in scope, of a list field, of a rich-text field; one of the catalog's icons.
+ * of a field in scope, of a list field, of a rich-text field; one of the catalog's icons; a name of one's own (a zone's:
+ * lower-case letters, digits, - and _).
  */
 export type Spec =
   | {
@@ -226,7 +227,10 @@ export type Spec =
   | "field"
   | "list"
   | "html"
-  | "icon";
+  | "icon"
+  | "name";
+
+const NAME_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
 export const SIZES = ["xs", "sm", "md", "lg", "xl"] as const;
 /** The site's colours a template may use (both themes): Mantine's dimmed and the site's tokens. */
@@ -276,6 +280,8 @@ export type ElementDef = {
   repeats?: boolean;
   /** A control element: draws nothing of its own. */
   control?: boolean;
+  /** Only in a page layout (layouts.ts), never in a component's template. */
+  layoutOnly?: boolean;
 };
 
 export const ELEMENTS: Record<string, ElementDef> = {
@@ -329,6 +335,8 @@ export const ELEMENTS: Record<string, ElementDef> = {
   If: { attrs: { field: "field", not: "field", is: "text" }, oneOf: ["field", "not"], control: true },
   Work: { attrs: { slug: "text" }, needs: ["slug"], control: true },
   Works: { attrs: {}, repeats: true, control: true },
+  // Where a page's components of that zone stand, in a page layout (layouts.ts).
+  Zone: { attrs: { name: "name" }, leaf: true, needs: ["name"], layoutOnly: true },
 };
 
 /** A field as a template sees it: its name, its kind (the catalog's) and, for a list, its items' fields. */
@@ -374,6 +382,7 @@ export function attrValue(spec: Spec, raw: string | true): unknown {
   if (raw === true) return undefined;
   if (spec === "text") return raw;
   if (spec === "link") return LINK.test(raw) ? raw : undefined;
+  if (spec === "name") return NAME_RE.test(raw) ? raw : undefined;
   if (spec === "field" || spec === "list" || spec === "html" || spec === "icon") return raw;
   const words = raw.trim().split(/\s+/);
   if (!spec.responsive || words.length === 1) return words.length === 1 ? token(spec, words[0]!) : undefined;
@@ -403,19 +412,21 @@ export function fieldIn(scopes: FieldInfo[][], name: string): FieldInfo | undefi
 }
 
 /**
- * Every problem with [src] as a template for a block whose fields are [fields]: its syntax, each element and attribute
- * against ELEMENTS, each binding against the fields in scope, the UI texts ([texts], when given) and the icons ([icons],
- * when given). None: it can be saved.
+ * Every problem with [src] as a template for a block whose fields are [fields] (or, with [layout], as a page layout
+ * whose fields are the page's): its syntax, each element and attribute against ELEMENTS, each binding against the fields
+ * in scope, the UI texts ([texts], when given) and the icons ([icons], when given); a layout's zones, each once, at
+ * least one. None: it can be saved.
  */
 export function checkTemplate(
   src: string,
   fields: FieldInfo[],
-  o: { texts?: ReadonlySet<string>; icons?: readonly string[] } = {},
+  o: { texts?: ReadonlySet<string>; icons?: readonly string[]; layout?: boolean } = {},
 ): TProblem[] {
   if (!src.trim()) return [problem("empty")];
   const { nodes, problems } = parseTemplate(src);
   if (problems.length) return problems;
   const out: TProblem[] = [];
+  const zones = new Set<string>();
 
   const refs = (parts: Part[], scopes: FieldInfo[][], counted: boolean, line: number) => {
     for (const p of parts) {
@@ -445,6 +456,11 @@ export function checkTemplate(
     const { tag, line } = n;
     const def = ELEMENTS[tag];
     if (!def) return void out.push(problem("unknownTag", { tag, line }));
+    if (def.layoutOnly && !o.layout) return void out.push(problem("layoutOnly", { tag, line }));
+    if (tag === "Zone" && typeof n.attrs.name === "string") {
+      if (zones.has(n.attrs.name)) out.push(problem("zoneTwice", { name: n.attrs.name, line }));
+      zones.add(n.attrs.name);
+    }
     const real = parents.filter((p) => !ELEMENTS[p]?.control);
     if (def.inside && real.at(-1) !== def.inside)
       out.push(problem("inside", { tag, parent: def.inside, line }));
@@ -464,6 +480,11 @@ export function checkTemplate(
       }
       if (raw === true) {
         out.push(problem("needsValue", { tag, attr, line }));
+        continue;
+      }
+      if (spec === "name") {
+        if (attrValue(spec, raw) === undefined)
+          out.push(problem("badValue", { tag, attr, value: raw, line }));
         continue;
       }
       if (spec === "field" || spec === "list" || spec === "html") {
@@ -503,6 +524,7 @@ export function checkTemplate(
   };
 
   for (const n of nodes) visit(n, [fields], [], false);
+  if (o.layout && !zones.size) out.push(problem("noZone"));
   return out;
 }
 

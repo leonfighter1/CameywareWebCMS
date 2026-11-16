@@ -1,9 +1,9 @@
 /**
  * The working copy: what the editors save (drafts) of the pages, components (the blocks), templates (the component
- * styles), globals and UI texts (filed by their bundle). A page lists its blocks by component id, so a component can
- * stand on more than one page; a block names its template, or none for its type's own view. The snapshot
- * (`buildContent`) puts them in place, as the website reads them. Every save is refused unless the file is checked out by
- * whoever saves it (files.ts); a file made now is theirs.
+ * styles), page layouts, globals and UI texts (filed by their bundle). A page has a layout and its components as
+ * placements (pages.ts): a component in a zone with its style there, so a component can stand on more than one page and
+ * look different on each. The snapshot (`buildContent`) puts them in place, as the website reads them. Every save is
+ * refused unless the file is checked out by whoever saves it (files.ts); a file made now is theirs.
  */
 import { randomUUID } from "node:crypto";
 import { bundleLabel, bundleOf, bundleState } from "./bundles";
@@ -11,11 +11,14 @@ import { both, checkBlock, check, defaults, fieldsOf, GLOBALS, ICONS, TYPES } fr
 import type { Db } from "./db";
 import { claimNew, fileStates, type FileRow, KINDS, type Kind, mustHold } from "./files";
 import { canonical } from "./json";
+import { type Placement, placement } from "./pages";
 import { type Both, CmsError, msg } from "./words";
+import { isBuiltinLayout, LAYOUT_FIELDS, LAYOUTS } from "@/generated/layouts";
 import {
   GLOBAL_KEYS,
   isPagePath,
   type L10n,
+  type Layout,
   LOCALES,
   type Page,
   type SiteContent,
@@ -24,6 +27,7 @@ import {
 import { checkTemplate } from "@/generated/template";
 
 export type { Kind } from "./files";
+export type { Placement } from "./pages";
 
 export interface PageRow {
   id: string;
@@ -31,9 +35,12 @@ export interface PageRow {
   status: "active" | "inactive";
   title: L10n;
   description: L10n;
-  width: "normal" | "narrow";
-  spacing: "compact" | "roomy";
-  blocks: string[];
+  /** A built-in layout's name or a CMS layout's id. */
+  layout: string;
+  /** Shown or not; null: as its layout has it. */
+  breadcrumb: boolean | null;
+  sitemap: boolean;
+  blocks: Placement[];
   deleted: boolean;
   updated_at: string;
   updated_by: string;
@@ -43,9 +50,16 @@ export interface ComponentRow {
   id: string;
   type: string;
   name: string;
-  /** The template that draws it (templates.id), or none: its type's own view. */
-  template: string | null;
   data: Record<string, unknown>;
+  deleted: boolean;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface LayoutRow {
+  id: string;
+  name: string;
+  markup: string;
   deleted: boolean;
   updated_at: string;
   updated_by: string;
@@ -108,9 +122,33 @@ export async function getComponent(db: Db, id: string): Promise<ComponentRow | u
 export async function usedOn(db: Db, componentId: string): Promise<PageRow[]> {
   return (
     await db.query<PageRow>(`select * from pages where not deleted and blocks @> $1::jsonb order by path`, [
-      JSON.stringify([componentId]),
+      JSON.stringify([{ id: componentId }]),
     ])
   ).rows;
+}
+
+/** The pages (not deleted) where [templateId] is a placement's style. */
+export async function styledBy(db: Db, templateId: string): Promise<PageRow[]> {
+  return (
+    await db.query<PageRow>(`select * from pages where not deleted and blocks @> $1::jsonb order by path`, [
+      JSON.stringify([{ style: templateId }]),
+    ])
+  ).rows;
+}
+
+/** The pages (not deleted) in the CMS layout [layoutId]. */
+export async function laidOutBy(db: Db, layoutId: string): Promise<PageRow[]> {
+  return (
+    await db.query<PageRow>(`select * from pages where not deleted and layout = $1 order by path`, [layoutId])
+  ).rows;
+}
+
+export async function listLayouts(db: Db): Promise<LayoutRow[]> {
+  return (await db.query<LayoutRow>(`select * from layouts order by name, id`)).rows;
+}
+
+export async function getLayout(db: Db, id: string): Promise<LayoutRow | undefined> {
+  return (await db.query<LayoutRow>(`select * from layouts where id = $1`, [id])).rows[0];
 }
 
 export async function listGlobals(db: Db): Promise<GlobalRow[]> {
@@ -140,34 +178,30 @@ export async function getTemplate(db: Db, id: string): Promise<TemplateRow | und
   return (await db.query<TemplateRow>(`select * from templates where id = $1`, [id])).rows[0];
 }
 
-/** The blocks (not deleted) that [templateId] draws. */
-export async function drawnBy(db: Db, templateId: string): Promise<ComponentRow[]> {
-  return (
-    await db.query<ComponentRow>(
-      `select * from components where not deleted and template = $1 order by name, id`,
-      [templateId],
-    )
-  ).rows;
-}
-
 // ---- the state a file is checked in with ---------------------------------------------------------------------
 
-export const pageState = (p: PageRow) => ({
+/** A page's state: its breadcrumb and sitemap only when the page says otherwise than its layout and the default. */
+export const pageState = (
+  p: Pick<
+    PageRow,
+    "path" | "status" | "title" | "description" | "layout" | "breadcrumb" | "sitemap" | "blocks"
+  >,
+) => ({
   path: p.path,
   status: p.status,
   title: p.title,
   description: p.description,
-  width: p.width,
-  spacing: p.spacing,
-  blocks: p.blocks,
+  layout: p.layout,
+  ...(p.breadcrumb === null || p.breadcrumb === undefined ? {} : { breadcrumb: p.breadcrumb }),
+  ...(p.sitemap === false ? { sitemap: false } : {}),
+  blocks: p.blocks.map(placement),
 });
-/** A block's state: its template only when it names one (a state checked in before templates reads the same). */
-export const componentState = (c: Pick<ComponentRow, "type" | "name" | "data" | "template">) => ({
+export const componentState = (c: Pick<ComponentRow, "type" | "name" | "data">) => ({
   type: c.type,
   name: c.name,
-  ...(c.template ? { template: c.template } : {}),
   data: c.data,
 });
+export const layoutState = (l: LayoutRow): Layout => ({ name: l.name, markup: l.markup });
 export const templateState = (t: TemplateRow): Template => ({ type: t.type, name: t.name, markup: t.markup });
 
 /** A block's or a template's name in both languages: its type's and its own. */
@@ -222,6 +256,16 @@ export async function workingStates(db: Db) {
       label: typedLabel(t),
       at: t.updated_at,
       by: t.updated_by,
+    });
+  for (const l of await listLayouts(db))
+    put({
+      kind: "layout",
+      id: l.id,
+      state: layoutState(l),
+      deleted: l.deleted,
+      label: same(l.name || l.id),
+      at: l.updated_at,
+      by: l.updated_by,
     });
   for (const g of await listGlobals(db))
     put({
@@ -313,9 +357,22 @@ async function checkPage(db: Db, id: string, p: Partial<PageRow>) {
   }
   if (p.status !== undefined && !["active", "inactive"].includes(p.status))
     errors.push(msg("check.pageStatus"));
-  if (p.width !== undefined && !["normal", "narrow"].includes(p.width)) errors.push(msg("check.pageWidth"));
-  if (p.spacing !== undefined && !["compact", "roomy"].includes(p.spacing))
-    errors.push(msg("check.pageSpacing"));
+  if (p.layout !== undefined && !isBuiltinLayout(p.layout)) {
+    const l = await getLayout(db, p.layout);
+    if (!l || l.deleted) errors.push(msg("check.noLayout", { id: p.layout }));
+  }
+  if (p.blocks !== undefined) {
+    const comps = new Map((await listComponents(db)).filter((c) => !c.deleted).map((c) => [c.id, c]));
+    const styles = new Map((await listTemplates(db)).filter((t) => !t.deleted).map((t) => [t.id, t]));
+    for (const b of p.blocks) {
+      const c = comps.get(b.id);
+      if (!c) errors.push(msg("check.noBlock", { id: b.id }));
+      if (!/^[a-z][a-z0-9_-]{0,31}$/.test(b.zone ?? ""))
+        errors.push(msg("check.badZone", { zone: b.zone ?? "" }));
+      if (b.style && (!styles.has(b.style) || (c && styles.get(b.style)!.type !== c.type)))
+        errors.push(msg("check.noTemplate", { id: b.style }));
+    }
+  }
   const texts = check({ title: p.title, description: p.description }, [
     { name: "title", label: "标题", kind: "text", localized: true, required: p.title !== undefined },
     { name: "description", label: "描述", kind: "textarea", localized: true },
@@ -335,39 +392,35 @@ export async function createPage(db: Db, p: { path: string; title: L10n }, by: s
   return id;
 }
 
-export async function savePage(
-  db: Db,
-  id: string,
-  p: Partial<Omit<PageRow, "id" | "blocks">> & { blocks?: string[] },
-  by: string,
-) {
+/** What a page's save may change: its settings, its layout, its placements. */
+export type PageChange = Partial<
+  Pick<PageRow, "path" | "status" | "title" | "description" | "layout" | "breadcrumb" | "sitemap" | "blocks">
+>;
+
+/**
+ * A page saved: its settings, its layout (a built-in one or a CMS layout not deleted), its placements (each a component
+ * not deleted, in a zone, its style a template of the component's type). A zone the layout lacks is kept: the site draws
+ * it in the main zone and the editor says so.
+ */
+export async function savePage(db: Db, id: string, p: PageChange, by: string) {
   const now = await getPage(db, id);
   if (!now || now.deleted) throw new CmsError("errors.noPage");
   await mustHold(db, "page", id, by);
   const merged = { ...now, ...p };
-  const texts = await checkPage(db, id, merged);
-  if (p.blocks) {
-    const known = new Set((await listComponents(db)).filter((c) => !c.deleted).map((c) => c.id));
-    const unknown = p.blocks.filter((b) => !known.has(b));
-    if (unknown.length)
-      throw new CmsError(
-        "errors.pageNotSaved",
-        undefined,
-        unknown.map((b) => msg("check.noBlock", { id: b })),
-      );
-  }
+  const texts = await checkPage(db, id, { ...merged, blocks: p.blocks, layout: p.layout });
   await db.query(
-    `update pages set path = $2, status = $3, title = $4, description = $5, width = $6, spacing = $7, blocks = $8,
-       updated_at = now(), updated_by = $9 where id = $1`,
+    `update pages set path = $2, status = $3, title = $4, description = $5, layout = $6, breadcrumb = $7, sitemap = $8,
+       blocks = $9, updated_at = now(), updated_by = $10 where id = $1`,
     [
       id,
       merged.path,
       merged.status,
       JSON.stringify(texts.title),
       JSON.stringify(texts.description),
-      merged.width,
-      merged.spacing,
-      JSON.stringify(merged.blocks),
+      merged.layout,
+      merged.breadcrumb,
+      merged.sitemap,
+      JSON.stringify(merged.blocks.map(placement)),
       by,
     ],
   );
@@ -404,30 +457,16 @@ export async function createComponent(
   return id;
 }
 
-/**
- * A block saved: its name, its data (checked by its type) and the template that draws it ([template]: one of its type's,
- * not deleted; null for its type's own view; left out, as it was).
- */
-export async function saveComponent(
-  db: Db,
-  id: string,
-  c: { name?: string; data?: unknown; template?: string | null },
-  by: string,
-) {
+/** A block saved: its name and its data (checked by its type). Its style is chosen where a page places it. */
+export async function saveComponent(db: Db, id: string, c: { name?: string; data?: unknown }, by: string) {
   const now = await getComponent(db, id);
   if (!now || now.deleted) throw new CmsError("errors.noBlock");
   await mustHold(db, "component", id, by);
   const checked = c.data === undefined ? { value: now.data, errors: [] } : checkBlock(now.type, c.data);
-  const template = c.template === undefined ? now.template : c.template || null;
-  if (template) {
-    const t = await getTemplate(db, template);
-    if (!t || t.deleted || t.type !== now.type)
-      checked.errors.push(msg("check.noTemplate", { id: template }));
-  }
   if (checked.errors.length) throw new CmsError("errors.blockNotSaved", undefined, checked.errors);
   await db.query(
-    `update components set name = $2, data = $3, template = $4, updated_at = now(), updated_by = $5 where id = $1`,
-    [id, c.name ?? now.name, JSON.stringify(checked.value), template, by],
+    `update components set name = $2, data = $3, updated_at = now(), updated_by = $4 where id = $1`,
+    [id, c.name ?? now.name, JSON.stringify(checked.value), by],
   );
 }
 
@@ -469,8 +508,22 @@ export async function saveGlobal(db: Db, key: string, data: unknown, by: string)
  * Tags and code go into a message as its values (a message holds no tag and no brace of its own: next-intl reads them).
  */
 export async function templateProblems(db: Db, type: string, markup: string) {
+  return markupProblems(db, markup, fieldsOf(type), false);
+}
+
+/** Every problem with [markup] as a page layout: a template's, its zones', with the page's words to bind. */
+export async function layoutProblems(db: Db, markup: string) {
+  return markupProblems(db, markup, LAYOUT_FIELDS, true);
+}
+
+async function markupProblems(
+  db: Db,
+  markup: string,
+  fields: Parameters<typeof checkTemplate>[1],
+  layout: boolean,
+) {
   const texts = new Set((await listTexts(db)).map((t) => t.key));
-  return checkTemplate(markup, fieldsOf(type), { texts, icons: ICONS }).map((p) => {
+  return checkTemplate(markup, fields, { texts, icons: ICONS, layout }).map((p) => {
     const v: Record<string, string | number> = { ...p.values };
     for (const k of ["tag", "open", "parent"]) if (typeof v[k] === "string") v[k] = `<${v[k]}>`;
     if (typeof p.values.tag === "string") v.close = `</${p.values.tag}>`;
@@ -523,21 +576,77 @@ export async function saveTemplate(db: Db, id: string, t: { name?: string; marku
   );
 }
 
-/** A template no block uses any more. */
+/** A template no page places a block with any more. */
 export async function deleteTemplate(db: Db, id: string, by: string) {
   await mustHold(db, "template", id, by);
-  const blocks = await drawnBy(db, id);
-  if (blocks.length)
+  const pages = await styledBy(db, id);
+  if (pages.length)
     throw new CmsError(
       "errors.templateInUse",
       undefined,
-      blocks.map((b) => msg("check.drawsBlock", { label: typedLabel(b) })),
+      pages.map((p) => msg("check.styledOn", { path: p.path })),
     );
   await db.query(`update templates set deleted = true, updated_at = now(), updated_by = $2 where id = $1`, [
     id,
     by,
   ]);
 }
+
+// ---- page layouts written in the CMS ---------------------------------------------------------------------------
+
+/** A new page layout (its markup checked), checked out to [by]. */
+export async function createLayout(db: Db, name: string, markup: string, by: string, id = newId("lay")) {
+  if (!name.trim()) throw new CmsError("errors.layoutName");
+  const problems = await layoutProblems(db, markup);
+  if (problems.length) throw new CmsError("errors.layoutNotSaved", undefined, problems);
+  await db.query(`insert into layouts (id, name, markup, updated_by) values ($1, $2, $3, $4)`, [
+    id,
+    name.trim(),
+    markup,
+    by,
+  ]);
+  await claimNew(db, "layout", id, by);
+  return id;
+}
+
+export async function saveLayout(db: Db, id: string, l: { name?: string; markup?: string }, by: string) {
+  const now = await getLayout(db, id);
+  if (!now || now.deleted) throw new CmsError("errors.noLayout", { id });
+  await mustHold(db, "layout", id, by);
+  const name = (l.name ?? now.name).trim();
+  if (!name) throw new CmsError("errors.layoutName");
+  const markup = l.markup ?? now.markup;
+  const problems = await layoutProblems(db, markup);
+  if (problems.length) throw new CmsError("errors.layoutNotSaved", undefined, problems);
+  await db.query(
+    `update layouts set name = $2, markup = $3, updated_at = now(), updated_by = $4 where id = $1`,
+    [id, name, markup, by],
+  );
+}
+
+/** A layout no page is in any more. */
+export async function deleteLayout(db: Db, id: string, by: string) {
+  await mustHold(db, "layout", id, by);
+  const pages = await laidOutBy(db, id);
+  if (pages.length)
+    throw new CmsError(
+      "errors.layoutInUse",
+      undefined,
+      pages.map((p) => msg("check.usedOn", { path: p.path })),
+    );
+  await db.query(`update layouts set deleted = true, updated_at = now(), updated_by = $2 where id = $1`, [
+    id,
+    by,
+  ]);
+}
+
+/** A layout's name in [lang]: a built-in one's label, a CMS one's own name. */
+export const layoutLabel = (name: string, layouts: LayoutRow[], lang: "zh" | "en") =>
+  isBuiltinLayout(name)
+    ? lang === "en"
+      ? LAYOUTS[name]!.label_en
+      : LAYOUTS[name]!.label
+    : (layouts.find((l) => l.id === name)?.name ?? name);
 
 // ---- the UI texts, by their bundle -----------------------------------------------------------------------------
 
@@ -572,20 +681,21 @@ export async function writeWorking(db: Db, kind: Kind, id: string, state: unknow
         `update pages set deleted = true, updated_at = now(), updated_by = $2 where id = $1`,
         [id, by],
       ));
-    const s = state as ReturnType<typeof pageState>;
+    const s = state as PageState;
     await db.query(
-      `insert into pages (id, path, status, title, description, width, spacing, blocks, deleted, updated_by)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, false, $9)
-       on conflict (id) do update set path = $2, status = $3, title = $4, description = $5, width = $6, spacing = $7,
-         blocks = $8, deleted = false, updated_at = now(), updated_by = $9`,
+      `insert into pages (id, path, status, title, description, layout, breadcrumb, sitemap, blocks, deleted, updated_by)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10)
+       on conflict (id) do update set path = $2, status = $3, title = $4, description = $5, layout = $6, breadcrumb = $7,
+         sitemap = $8, blocks = $9, deleted = false, updated_at = now(), updated_by = $10`,
       [
         id,
         s.path,
         s.status,
         JSON.stringify(s.title),
         JSON.stringify(s.description),
-        s.width,
-        s.spacing,
+        s.layout,
+        s.breadcrumb ?? null,
+        s.sitemap !== false,
         JSON.stringify(s.blocks),
         by,
       ],
@@ -596,12 +706,23 @@ export async function writeWorking(db: Db, kind: Kind, id: string, state: unknow
         `update components set deleted = true, updated_at = now(), updated_by = $2 where id = $1`,
         [id, by],
       ));
-    const s = state as ReturnType<typeof componentState>;
+    const s = state as CompState;
     await db.query(
-      `insert into components (id, type, name, template, data, deleted, updated_by) values ($1, $2, $3, $4, $5, false, $6)
-       on conflict (id) do update set type = $2, name = $3, template = $4, data = $5, deleted = false, updated_at = now(),
-         updated_by = $6`,
-      [id, s.type, s.name, s.template ?? null, JSON.stringify(s.data), by],
+      `insert into components (id, type, name, data, deleted, updated_by) values ($1, $2, $3, $4, false, $5)
+       on conflict (id) do update set type = $2, name = $3, data = $4, deleted = false, updated_at = now(), updated_by = $5`,
+      [id, s.type, s.name, JSON.stringify(s.data), by],
+    );
+  } else if (kind === "layout") {
+    if (state === null)
+      return void (await db.query(
+        `update layouts set deleted = true, updated_at = now(), updated_by = $2 where id = $1`,
+        [id, by],
+      ));
+    const s = state as Layout;
+    await db.query(
+      `insert into layouts (id, name, markup, deleted, updated_by) values ($1, $2, $3, false, $4)
+       on conflict (id) do update set name = $2, markup = $3, deleted = false, updated_at = now(), updated_by = $4`,
+      [id, s.name, s.markup, by],
     );
   } else if (kind === "template") {
     if (state === null)
@@ -645,6 +766,7 @@ export async function forget(db: Db, kind: Kind, id: string) {
     page: `delete from pages where id = $1`,
     component: `delete from components where id = $1`,
     template: `delete from templates where id = $1`,
+    layout: `delete from layouts where id = $1`,
     global: `delete from globals where key = $1`,
     bundle: `delete from texts where split_part(key, '.', 1) = $1`,
   };
@@ -671,32 +793,36 @@ export function contentOf(
   revisions: Map<string, Revision>,
   o: { activeOnly?: boolean; environment?: SiteContent["environment"] } = {},
 ): SiteContent {
-  const pages = new Map<string, PageState>();
-  const comps = new Map<string, CompState>();
-  const templates: Record<string, Template> = {};
-  const globals: Record<string, unknown> = {};
-  const texts: Record<string, L10n> = {};
+  const site = parts();
   for (const r of revisions.values()) {
     if (r.deleted) continue;
-    if (r.kind === "page") pages.set(r.entity_id, r.data as PageState);
-    else if (r.kind === "component") comps.set(r.entity_id, r.data as CompState);
-    else if (r.kind === "template") templates[r.entity_id] = r.data as Template;
-    else if (r.kind === "global") globals[r.entity_id] = r.data;
-    else if (r.kind === "bundle") Object.assign(texts, r.data as Record<string, L10n>);
+    if (r.kind === "page") site.pages.set(r.entity_id, r.data as PageState);
+    else if (r.kind === "component") site.comps.set(r.entity_id, r.data as CompState);
+    else if (r.kind === "template") site.templates[r.entity_id] = r.data as Template;
+    else if (r.kind === "layout") site.layouts[r.entity_id] = r.data as Layout;
+    else if (r.kind === "global") site.globals[r.entity_id] = r.data;
+    else if (r.kind === "bundle") Object.assign(site.texts, r.data as Record<string, L10n>);
   }
-  return assemble(pages, comps, templates, globals, texts, o);
+  return assemble(site, o);
 }
 
+/** The files a site is made of, before they are put together. */
+const parts = () => ({
+  pages: new Map<string, PageState>(),
+  comps: new Map<string, CompState>(),
+  templates: {} as Record<string, Template>,
+  layouts: {} as Record<string, Layout>,
+  globals: {} as Record<string, unknown>,
+  texts: {} as Record<string, L10n>,
+});
+
+/** A page's placements as the website reads them: each component's own words, its zone and its style there. */
 function assemble(
-  pages: Map<string, PageState>,
-  comps: Map<string, CompState>,
-  templates: Record<string, Template>,
-  globals: Record<string, unknown>,
-  texts: Record<string, L10n>,
+  site: ReturnType<typeof parts>,
   o: { activeOnly?: boolean; environment?: SiteContent["environment"] },
 ): SiteContent {
   const out: Page[] = [];
-  for (const [id, p] of pages) {
+  for (const [id, p] of site.pages) {
     if (o.activeOnly && p.status !== "active") continue;
     out.push({
       id,
@@ -704,27 +830,38 @@ function assemble(
       status: p.status,
       title: p.title,
       description: p.description,
-      width: p.width,
-      spacing: p.spacing,
+      layout: p.layout,
+      ...(p.breadcrumb !== undefined && { breadcrumb: p.breadcrumb }),
+      ...(p.sitemap === false && { sitemap: false }),
       blocks: p.blocks.flatMap((b) => {
-        const c = comps.get(b);
+        const c = site.comps.get(b.id);
         return c
-          ? [{ id: b, type: c.type, name: c.name, ...(c.template && { template: c.template }), data: c.data }]
+          ? [
+              {
+                id: b.id,
+                type: c.type,
+                name: c.name,
+                zone: b.zone,
+                ...(b.style && { template: b.style }),
+                data: c.data,
+              },
+            ]
           : [];
       }),
     });
   }
   out.sort((a, b) => a.path.localeCompare(b.path));
   for (const k of GLOBAL_KEYS)
-    if (!globals[k]) throw new CmsError("errors.globalMissing", { label: both(GLOBALS[k], k) });
+    if (!site.globals[k]) throw new CmsError("errors.globalMissing", { label: both(GLOBALS[k], k) });
   return {
     format: 1,
     environment: o.environment ?? "cms",
     generated_at: new Date().toISOString(),
-    globals: globals as unknown as SiteContent["globals"],
+    globals: site.globals as unknown as SiteContent["globals"],
     pages: out,
-    texts,
-    templates,
+    texts: site.texts,
+    templates: site.templates,
+    layouts: site.layouts,
   };
 }
 
@@ -738,15 +875,12 @@ export async function buildContent(
   o: { activeOnly?: boolean; environment?: SiteContent["environment"] } = {},
 ): Promise<SiteContent> {
   if (view !== "draft") return contentOf(await revisionsAt(db, OVERLAYS[view]), o);
-  const pages = new Map<string, PageState>();
-  const comps = new Map<string, CompState>();
-  const templates: Record<string, Template> = {};
-  const globals: Record<string, unknown> = {};
-  const texts: Record<string, L10n> = {};
-  for (const p of await listPages(db)) if (!p.deleted) pages.set(p.id, pageState(p));
-  for (const c of await listComponents(db)) if (!c.deleted) comps.set(c.id, componentState(c));
-  for (const t of await listTemplates(db)) if (!t.deleted) templates[t.id] = templateState(t);
-  for (const g of await listGlobals(db)) globals[g.key] = g.data;
-  for (const t of await listTexts(db)) texts[t.key] = t.value;
-  return assemble(pages, comps, templates, globals, texts, o);
+  const site = parts();
+  for (const p of await listPages(db)) if (!p.deleted) site.pages.set(p.id, pageState(p));
+  for (const c of await listComponents(db)) if (!c.deleted) site.comps.set(c.id, componentState(c));
+  for (const t of await listTemplates(db)) if (!t.deleted) site.templates[t.id] = templateState(t);
+  for (const l of await listLayouts(db)) if (!l.deleted) site.layouts[l.id] = layoutState(l);
+  for (const g of await listGlobals(db)) site.globals[g.key] = g.data;
+  for (const t of await listTexts(db)) site.texts[t.key] = t.value;
+  return assemble(site, o);
 }

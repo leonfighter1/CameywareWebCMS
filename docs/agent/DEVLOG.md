@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (c): v4.0.0, S4 (page layouts, the page editor, a style per placement)
+
+- The owner's request (Bell's Productivity_Tech.xml, then its page editor's screenshots) and L1–L2 are in
+  docs/tech-plan.md (S4). Layouts: the website's `src/cms/layouts.ts` (synced as `src/generated/layouts.ts`); here the
+  `layouts` table, kind `layout`, `views/layouts` in the explorer with the four built-ins; a CMS layout is markup with
+  `Zone` elements (`layoutProblems`), previewed on cms-preview with `?layout=`.
+- A page's blocks are placements `{id, zone, style?}` (`src/lib/pages.ts`): the style moved from the component to its
+  place on a page. Migration 4 (a step): `layouts`, pages' `layout/breadcrumb/sitemap`, `pagesToLayouts` upgrading every
+  page and page revision in place (styleOf from `components.template`, then dropped with `pages.width/spacing`).
+  `newPartsOf` takes a page's new components, styles and CMS layout along at every step; a release refuses a page
+  without its layout, block or style; a layout in use isn't deleted or discarded.
+- The page editor (`pages/[id]/editor.tsx`, Bell's): the palette dragged (HTML5 drag and drop) into a zone's slot opens
+  the place dialog (Use Shared / Create New / Copy From Existing, the zone, the style); rows drag or move by arrows
+  (`setBlocksAction`); the style browser (by use or name, pages using it); Metadata (常规 / 标题和描述). Download and
+  upload: a page is a WebPage (Bell's shape: MetaData, PageLayout, Components by path, zone, index and style path); the
+  old embedded page still reads.
+- The walk (`cms-s4.cjs`): the routes in zh and en; an image dragged into /contact/ as a new block with a style, the row
+  dragged to the top, Use Shared, Metadata, a layout made from 文章 and previewed, all discarded. It found the home
+  crumb named by the home page's SEO title (the site's breadcrumb now takes the menu's word) and the cookie banner over
+  the layout preview (hidden in an editor's frame, website v2.2.0); and a wait on a Modal's testid (mistake 10).
+- Checks: 39 unit tests; the local database copied first (data/cms-v3-2026-11-16), migrated at start; production
+  untouched (release 5).
+
 ## 2026-11-16 (b): v3.0.1, the layout less crowded
 
 - The owner (a screenshot with the menu and the tree circled): 「做的有点那味了，闲杂重新布局一下，不要把东西都塞到一起，这样

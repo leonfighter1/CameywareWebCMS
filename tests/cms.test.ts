@@ -15,7 +15,9 @@ import {
   buildContent,
   changes,
   createComponent,
+  createLayout,
   createTemplate,
+  deleteLayout,
   deleteTemplate,
   getComponent,
   listPages,
@@ -42,6 +44,13 @@ const site = JSON.parse(readFileSync(join(siteRepo(), "content", "site.json"), "
 const hero = site.pages.find((p) => p.path === "/")!.blocks[0]!;
 const HERO_TITLE = "把好想法，做成每天都好用的软件";
 const heroItem = [{ kind: "component" as const, id: hero.id }];
+const home = site.pages.find((p) => p.path === "/")!;
+const homeItem = [{ kind: "page" as const, id: home.id }];
+/** [by] (who holds the home page) places the hero with [style]. */
+async function styleHero(db: PGlite, style: string, by: string) {
+  const page = (await listPages(db)).find((p) => p.path === "/")!;
+  await savePage(db, page.id, { blocks: page.blocks.map((b, i) => (i === 0 ? { ...b, style } : b)) }, by);
+}
 const titleOf = (c: SiteContent) =>
   (c.pages.find((p) => p.path === "/")!.blocks[0]!.data.title as { zh: string }).zh;
 /** A deployment that builds nothing and pushes nothing: the workflow's steps alone. */
@@ -155,6 +164,59 @@ describe("the first start", () => {
       "template",
     ]);
   });
+
+  it("migrates a v3 database: each page a layout, its blocks placements in zones, the blocks' templates their styles", async () => {
+    const old = new PGlite();
+    await old.exec(MIGRATIONS[0] as string);
+    await old.exec(MIGRATIONS[1] as string);
+    await old.transaction((tx) => (MIGRATIONS[2] as (tx: Transaction) => Promise<void>)(tx));
+    await old.exec(`
+      insert into checkins (id, message, author, items) values (1, 'm', 'a', '[]');
+      insert into components (id, type, name, data, template) values
+        ('h', 'hero_banner', '横幅', '{}', 'tpl-1'), ('a', 'accordion', '问答', '{}', null);
+      insert into pages (id, path, spacing, width, blocks) values
+        ('p1', '/', 'roomy', 'normal', '["h", "a"]'), ('p2', '/faq/', 'compact', 'narrow', '["a"]');
+      insert into revisions (id, kind, entity_id, data, checkin_id, author) values
+        (1, 'page', 'p1', '{"path": "/", "spacing": "roomy", "width": "normal", "blocks": ["h", "a"]}', 1, 'a'),
+        (2, 'component', 'h', '{"type": "hero_banner", "name": "横幅", "template": "tpl-1", "data": {}}', 1, 'a');
+      select setval('revisions_id_seq', 2);`);
+    await old.transaction((tx) => (MIGRATIONS[3] as (tx: Transaction) => Promise<void>)(tx));
+    const pages = (
+      await old.query<{ id: string; layout: string; blocks: unknown }>(
+        `select id, layout, blocks from pages order by id`,
+      )
+    ).rows;
+    expect(pages).toEqual([
+      {
+        id: "p1",
+        layout: "home",
+        blocks: [
+          { id: "h", zone: "hero", style: "tpl-1" },
+          { id: "a", zone: "main" },
+        ],
+      },
+      { id: "p2", layout: "standard", blocks: [{ id: "a", zone: "main" }] },
+    ]);
+    const revs = (
+      await old.query<{ id: number; data: Record<string, unknown> }>(
+        `select id, data from revisions order by id`,
+      )
+    ).rows;
+    expect(revs[0]!.data).toEqual({
+      path: "/",
+      layout: "home",
+      blocks: [
+        { id: "h", zone: "hero" },
+        { id: "a", zone: "main" },
+      ],
+    });
+    expect(revs[1]!.data).not.toHaveProperty("template");
+    const cols = async (table: string) =>
+      (await old.query(`select * from ${table} limit 0`)).fields.map((f) => f.name);
+    expect(await cols("pages")).not.toContain("width");
+    expect(await cols("components")).not.toContain("template");
+    expect(await cols("layouts")).toContain("markup");
+  });
 });
 
 describe("the catalog's check", () => {
@@ -228,7 +290,7 @@ describe("files: take, take over, put back, discard", () => {
     const id = await createComponent(pg, "freeform", "地图", "lee", { html: { zh: "<b>地图</b>" } });
     expect((await fileState(pg, "component", id))!).toMatchObject({ status: "checked_out", owner: "lee" });
     await take(pg, [{ kind: "page", id: page.id }], "lee");
-    await savePage(pg, page.id, { blocks: [...page.blocks, id] }, "lee");
+    await savePage(pg, page.id, { blocks: [...page.blocks, { id, zone: "main" }] }, "lee");
     await expect(discard(pg, [{ kind: "component", id }], "lee")).rejects.toThrow(/还在页面上用着/);
     await discard(
       pg,
@@ -323,7 +385,7 @@ describe("the workflow", () => {
     const pageItem = [{ kind: "page" as const, id: page.id }];
     const id = await createComponent(pg, "freeform", "地图", "lee", { html: { zh: "<b>地图</b>" } });
     await take(pg, pageItem, "lee");
-    await savePage(pg, page.id, { blocks: [...page.blocks, id] }, "lee");
+    await savePage(pg, page.id, { blocks: [...page.blocks, { id, zone: "main" }] }, "lee");
     await checkIn(pg, pageItem, "联系页加地图", "lee");
     expect((await fileState(pg, "component", id))!.stage).toBe("checked_in");
     const r = await toPreview(pg, pageItem, "lee", "", built);
@@ -386,40 +448,40 @@ describe("templates (component styles)", () => {
     });
     const id = await createTemplate(pg, "hero_banner", "居中横幅", CENTRED, "lee");
     expect(await fileState(pg, "template", id)).toMatchObject({ status: "checked_out", owner: "lee" });
-    await take(pg, heroItem, "lee");
-    await expect(saveComponent(pg, hero.id, { template: "tpl-none" }, "lee")).rejects.toMatchObject({
+    await take(pg, homeItem, "lee");
+    await expect(styleHero(pg, "tpl-none", "lee")).rejects.toMatchObject({
       details: [expect.objectContaining({ key: "check.noTemplate" })],
     });
-    await saveComponent(pg, hero.id, { template: id }, "lee");
+    await styleHero(pg, id, "lee");
     const draft = await buildContent(pg, "draft");
     expect(draft.pages.find((p) => p.path === "/")!.blocks[0]!.template).toBe(id);
     expect(draft.templates![id]).toEqual({ type: "hero_banner", name: "居中横幅", markup: CENTRED });
-    await expect(deleteTemplate(pg, id, "lee")).rejects.toThrow(/还有区块在用/);
+    await expect(deleteTemplate(pg, id, "lee")).rejects.toThrow(/还有页面在用/);
 
-    // The block brings its new template along (lee holds it).
-    await checkIn(pg, heroItem, "居中的横幅", "lee");
+    // The page brings its new style along (lee holds it).
+    await checkIn(pg, homeItem, "居中的横幅", "lee");
     expect((await fileState(pg, "template", id))!.stage).toBe("checked_in");
-    // Terminated, the block's template leaves the workflow with it; checked in again, both go back in.
-    await terminate(pg, heroItem);
+    // Terminated, the page's style leaves the workflow with it; checked in again, both go back in.
+    await terminate(pg, homeItem);
     expect(await fileState(pg, "template", id)).toMatchObject({ status: "checked_out", owner: "lee" });
-    await checkIn(pg, heroItem, "居中的横幅", "lee");
-    const r = await toPreview(pg, heroItem, "lee", "", built);
+    await checkIn(pg, homeItem, "居中的横幅", "lee");
+    const r = await toPreview(pg, homeItem, "lee", "", built);
     expect(r.items).toHaveLength(2);
     await r.done;
-    // The template alone back to check-in would leave the block on preview without it.
+    // The style alone back to check-in would leave the page on preview without it.
     await expect(backToCheckIn(pg, [{ kind: "template", id }], "lee", built)).rejects.toMatchObject({
       details: [expect.objectContaining({ key: "errors.templateMissingAt" })],
     });
-    // The block back to check-in takes its template back with it, as it took it there.
-    const back = await backToCheckIn(pg, heroItem, "lee", built);
+    // The page back to check-in takes its style back with it, as it took it there.
+    const back = await backToCheckIn(pg, homeItem, "lee", built);
     expect(back.items).toHaveLength(2);
     await back.done;
     expect((await fileState(pg, "template", id))!.stage).toBe("checked_in");
     await (
-      await toPreview(pg, heroItem, "lee", "", built)
+      await toPreview(pg, homeItem, "lee", "", built)
     ).done;
     await (
-      await toProduction(pg, heroItem, "admin", "", built)
+      await toProduction(pg, homeItem, "admin", "", built)
     ).done;
     const production = await buildContent(pg, "production");
     expect(production.pages.find((p) => p.path === "/")!.blocks[0]!.template).toBe(id);
@@ -427,18 +489,76 @@ describe("templates (component styles)", () => {
     expect(await fileState(pg, "template", id)).toMatchObject({ status: "available" });
   });
 
-  it("refuses a block's check-in when its new template is someone else's, and a discard that would orphan it", async () => {
+  it("refuses a page's check-in when its new style is someone else's, and a discard that would orphan it", async () => {
     const id = await createTemplate(pg, "hero_banner", "金的样式", CENTRED, "kim");
-    await take(pg, heroItem, "lee");
-    await saveComponent(pg, hero.id, { template: id }, "lee");
-    await expect(checkIn(pg, heroItem, "要金的样式", "lee")).rejects.toMatchObject({
+    await take(pg, homeItem, "lee");
+    await styleHero(pg, id, "lee");
+    await expect(checkIn(pg, homeItem, "要金的样式", "lee")).rejects.toMatchObject({
       details: [expect.objectContaining({ key: "errors.templateNotComing" })],
     });
-    await expect(discard(pg, [{ kind: "template", id }], "kim")).rejects.toThrow(/还有区块在用/);
-    await discard(pg, heroItem, "lee");
+    await expect(discard(pg, [{ kind: "template", id }], "kim")).rejects.toThrow(/还有页面在用/);
+    await discard(pg, homeItem, "lee");
     await discard(pg, [{ kind: "template", id }], "kim");
     expect(await fileState(pg, "template", id)).toBeUndefined();
     expect(await changes(pg)).toEqual([]);
+  });
+});
+
+describe("page layouts and placements (S4)", () => {
+  const LAYOUT = `<Zone name="hero" />\n<Container py="xl"><Title order="1">{title}</Title><Zone name="main" /></Container>`;
+
+  it("the first start gives each page a layout and each block a zone; every page as wide", async () => {
+    const pages = await listPages(pg);
+    const home = pages.find((p) => p.path === "/")!;
+    expect(home.layout).toBe("home");
+    expect(home.blocks[0]).toEqual({ id: hero.id, zone: "hero" });
+    expect(home.blocks.slice(1).every((b) => b.zone === "main")).toBe(true);
+    for (const p of pages) expect(p).not.toHaveProperty("width");
+    const draft = await buildContent(pg, "draft");
+    expect(draft.pages.find((p) => p.path === "/")!.blocks[0]).toMatchObject({ zone: "hero" });
+    expect(draft.pages.every((p) => !("width" in p))).toBe(true);
+  });
+
+  it("a page in a CMS layout takes it along; a release refuses one without it; one in use isn't deleted", async () => {
+    await expect(createLayout(pg, "坏的", `<Box><Title>{title}</Title></Box>`, "lee")).rejects.toMatchObject({
+      details: [expect.objectContaining({ key: "markup.noZone" })],
+    });
+    const id = await createLayout(pg, "宽横幅布局", LAYOUT, "lee");
+    await take(pg, homeItem, "lee");
+    await expect(savePage(pg, home.id, { layout: "lay-none" }, "lee")).rejects.toMatchObject({
+      details: [expect.objectContaining({ key: "check.noLayout" })],
+    });
+    await savePage(pg, home.id, { layout: id }, "lee");
+    const draft = await buildContent(pg, "draft");
+    expect(draft.pages.find((p) => p.path === "/")!.layout).toBe(id);
+    expect(draft.layouts![id]).toEqual({ name: "宽横幅布局", markup: LAYOUT });
+    await expect(deleteLayout(pg, id, "lee")).rejects.toThrow(/还有页面在用/);
+    await checkIn(pg, homeItem, "首页换布局", "lee");
+    expect((await fileState(pg, "layout", id))!.stage).toBe("checked_in");
+    const r = await toPreview(pg, homeItem, "lee", "", built);
+    expect(r.items.map((i) => i.kind).sort()).toEqual(["layout", "page"]);
+    await r.done;
+    await expect(backToCheckIn(pg, [{ kind: "layout", id }], "lee", built)).rejects.toMatchObject({
+      details: [expect.objectContaining({ key: "errors.layoutMissingAt" })],
+    });
+    await (
+      await toProduction(pg, homeItem, "admin", "", built)
+    ).done;
+    const production = await buildContent(pg, "production");
+    expect(production.pages.find((p) => p.path === "/")!.layout).toBe(id);
+    expect(production.layouts![id]!.markup).toBe(LAYOUT);
+  });
+
+  it("refuses a zone name that isn't one and a style of another type", async () => {
+    await take(pg, homeItem, "lee");
+    const page = (await listPages(pg)).find((p) => p.path === "/")!;
+    const accordion = await createTemplate(pg, "accordion", "问答样式", `<Text>{title}</Text>`, "lee");
+    await expect(
+      savePage(pg, page.id, { blocks: [{ ...page.blocks[0]!, zone: "Main Zone" }] }, "lee"),
+    ).rejects.toMatchObject({ details: [expect.objectContaining({ key: "check.badZone" })] });
+    await expect(
+      savePage(pg, page.id, { blocks: [{ ...page.blocks[0]!, style: accordion }] }, "lee"),
+    ).rejects.toMatchObject({ details: [expect.objectContaining({ key: "check.noTemplate" })] });
   });
 });
 
@@ -528,10 +648,12 @@ describe("download and upload", () => {
       `<Box hero>\n  <Title order="1">{title} &amp; {eyebrow}</Title>\n</Box>`,
       "lee",
     );
-    await take(pg, heroItem, "lee");
-    await saveComponent(pg, hero.id, { template: id }, "lee");
+    await take(pg, homeItem, "lee");
+    await styleHero(pg, id, "lee");
+    const layout = await createLayout(pg, "两栏", `<Zone name="main" />`, "lee");
     const doc = await exportDoc(pg, "site");
     expect(doc.kind === "site" && doc.templates?.map((t) => t.id)).toEqual([id]);
+    expect(doc.kind === "site" && doc.layouts?.map((l) => l.id)).toEqual([layout]);
     for (const text of [JSON.stringify(doc), toXml(doc)]) {
       const plan = await importDoc(pg, parseUpload(text), "lee", false);
       expect(
@@ -559,19 +681,64 @@ describe("download and upload", () => {
     expect(titleOf(await buildContent(pg, "draft"))).toBe("上传的");
   });
 
-  it("makes a new page at a new address, its blocks copied, inactive and its uploader's", async () => {
+  it("gives a page as Bell's WebPage: its metadata and its components by path, zone and style", async () => {
+    const page = (await listPages(pg)).find((p) => p.path === "/")!;
+    const xml = toXml(await exportDoc(pg, "page", page.id));
+    expect(xml).toContain("<WebPage");
+    expect(xml).toContain("<PageLayout>Views/PageLayouts/home</PageLayout>");
+    expect(xml).toContain("<ZoneId>hero</ZoneId>");
+    expect(xml).toContain(`<ComponentFilePath>Content/Components/hero_banner/${hero.id}</ComponentFilePath>`);
+    expect(xml).toContain("<StyleFilePath>Views/Component_Styles/hero_banner/builtin</StyleFilePath>");
+    expect(xml).toContain("<Title_zh>");
+    const plan = await importDoc(pg, fromXml(xml), "lee", false);
+    expect(plan.items).toEqual([expect.objectContaining({ kind: "page", action: "unchanged" })]);
+  });
+
+  it("makes a new page at a new address from a WebPage, sharing its components, inactive and its uploader's", async () => {
     const page = (await listPages(pg)).find((p) => p.path === "/contact/")!;
     const doc = await exportDoc(pg, "page", page.id);
-    if (doc.kind !== "page") throw new Error("not a page");
+    if (doc.kind !== "webpage") throw new Error("not a webpage");
     const xml = toXml({ ...doc, page: { ...doc.page, id: undefined, path: "/contact-copy/" } });
     const plan = await importDoc(pg, fromXml(xml), "lee", true);
     expect(plan.items.find((i) => i.kind === "page")!.action).toBe("create");
     const made = (await listPages(pg)).find((p) => p.path === "/contact-copy/")!;
     expect(made.status).toBe("inactive");
-    expect(made.blocks).toHaveLength(page.blocks.length);
-    expect(made.blocks.some((b) => page.blocks.includes(b))).toBe(false);
-    expect((await getComponent(pg, made.blocks[0]!))!.type).toBe("page_title");
+    expect(made.blocks).toEqual(page.blocks);
     expect((await fileState(pg, "page", made.id))!.owner).toBe("lee");
+    // A component the CMS hasn't: refused, nothing made.
+    const bad = toXml({
+      ...doc,
+      page: { ...doc.page, id: undefined, path: "/contact-bad/" },
+      components: [{ zone: "main", index: 0, component: "Content/Components/image/nope" }],
+    });
+    await expect(importDoc(pg, fromXml(bad), "lee", true)).rejects.toMatchObject({
+      details: [
+        expect.objectContaining({
+          values: expect.objectContaining({
+            problem: expect.objectContaining({ key: "errors.importNoComponent" }),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it("still reads a page file of before S4 (its blocks inside it): a new page with copies of them", async () => {
+    const page = (await listPages(pg)).find((p) => p.path === "/contact/")!;
+    const blocks: { component: unknown }[] = [];
+    for (const b of page.blocks)
+      blocks.push((await exportDoc(pg, "component", b.id)) as unknown as { component: unknown });
+    const old = {
+      cms: 1,
+      kind: "page",
+      page: { path: "/contact-old/", title: { zh: "旧格式" }, width: "narrow", spacing: "compact" },
+      blocks: blocks.map((d) => d.component),
+    };
+    await importDoc(pg, parseUpload(JSON.stringify(old)), "lee", true);
+    const made = (await listPages(pg)).find((p) => p.path === "/contact-old/")!;
+    expect(made.layout).toBe("standard");
+    expect(made.blocks).toHaveLength(page.blocks.length);
+    expect(made.blocks.every((b) => b.zone === "main" && !page.blocks.some((x) => x.id === b.id))).toBe(true);
+    expect((await getComponent(pg, made.blocks[0]!.id))!.type).toBe("page_title");
   });
 
   it("refuses an upload with any part the catalog doesn't take, and changes nothing", async () => {
