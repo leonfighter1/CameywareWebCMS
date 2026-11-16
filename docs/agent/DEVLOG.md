@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (b): v3.0.1, the layout less crowded
+
+- The owner (a screenshot with the menu and the tree circled): 「做的有点那味了，闲杂重新布局一下，不要把东西都塞到一起，这样
+  显得很拥挤」. The pages are tabs in the top bar now (`shell.tsx`; the navbar only behind the burger below md), the user,
+  role, production link and sign-out in a user menu; the explorer's tree a sticky 300px column with its own scroll
+  (`explorer.tsx`, Flex instead of Grid); 总览's five counts in even cards, the releases and the CMS site in a 网站 card.
+- Checks: typecheck, lint, every route in both languages, screenshots at 1440, 1280 and 390 (the 1280 top bar first ran
+  off the edge: the production link moved into the user menu below xl).
+
 ## 2026-11-16: v3.0.0, S3 (the explorer, component styles, resource bundles)
 
 - The owner's request (Bell's CMS.Net screenshots) and T1–T3 are in docs/tech-plan.md (S3). Templates: the website's

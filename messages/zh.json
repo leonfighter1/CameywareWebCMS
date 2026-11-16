@@ -11,7 +11,7 @@
     "nav": {
       "explorer": "内容树",
       "mine": "我的文件",
-      "workflow": "工作流：签入、预览站、正式站",
+      "workflow": "工作流",
       "transfer": "下载与上传"
     }
   },
@@ -381,7 +381,7 @@
   },
   "explorer": {
     "tree": {
-      "all": "总览：谁在做什么",
+      "all": "总览",
       "content": "内容",
       "pages": "页面",
       "components": "组件",
@@ -479,7 +479,6 @@
       "checkedIn": "工作流：已签入",
       "preview": "工作流：预览站",
       "fresh": "新建（没发布过）",
-      "releases": "预览站 / 正式站的版本",
       "who": "谁在做什么",
       "whoLead": "每个人拿取的文件，和他们签入、还在工作流里的文件。点文件打开它。",
       "person": "人",
@@ -487,7 +486,11 @@
       "holding": "拿取中",
       "inWorkflow": "签入的、在工作流里",
       "nobody": "现在没人拿取文件，工作流也是空的。",
-      "recent": "最近修改"
+      "recent": "最近修改",
+      "sites": "网站",
+      "previewSite": "预览站 preview.cameyware.com",
+      "productionSite": "正式站 www.cameyware.com",
+      "release": "第 {id} 版"
     },
     "cmsSite": "CMS 预览站",
     "cmsSiteHelp": "网站代码改动后要重建；改内容不用。",

@@ -11,8 +11,8 @@
     "nav": {
       "explorer": "Content tree",
       "mine": "My files",
-      "workflow": "Workflow: check-in, preview, production",
-      "transfer": "Download and upload"
+      "workflow": "Workflow",
+      "transfer": "Download & upload"
     }
   },
   "roles": {
@@ -381,7 +381,7 @@
   },
   "explorer": {
     "tree": {
-      "all": "Overview: who is doing what",
+      "all": "Overview",
       "content": "Content",
       "pages": "Pages",
       "components": "Components",
@@ -479,7 +479,6 @@
       "checkedIn": "Workflow: checked in",
       "preview": "Workflow: on preview",
       "fresh": "New (never published)",
-      "releases": "Preview / production release",
       "who": "Who is doing what",
       "whoLead": "The files each person has taken, and those they checked in that are still in the workflow. A file opens on a click.",
       "person": "Person",
@@ -487,7 +486,11 @@
       "holding": "Taken",
       "inWorkflow": "Checked in, in the workflow",
       "nobody": "Nobody has taken a file, and the workflow is empty.",
-      "recent": "Latest changes"
+      "recent": "Latest changes",
+      "sites": "Sites",
+      "previewSite": "Preview, preview.cameyware.com",
+      "productionSite": "Production, www.cameyware.com",
+      "release": "Release {id}"
     },
     "cmsSite": "CMS preview site",
     "cmsSiteHelp": "Rebuild it after a change to the website's code; content needs no rebuild.",

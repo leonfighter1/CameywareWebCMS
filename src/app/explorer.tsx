@@ -6,10 +6,11 @@
 import {
   Anchor,
   Badge,
+  Box,
   Button,
   Card,
   Checkbox,
-  Grid,
+  Flex,
   Group,
   Modal,
   Pagination,
@@ -35,6 +36,7 @@ import {
   IconCode,
   IconFolder,
   IconFolderOpen,
+  IconLayoutDashboard,
   IconPlus,
   IconRefresh,
   IconSearch,
@@ -172,63 +174,77 @@ export function Explorer({
     router.push(value ? `/?at=${encodeURIComponent(value)}` : "/");
   };
   return (
-    <Grid gap="lg">
-      <Grid.Col span={{ base: 12, md: 4, lg: 3 }}>
-        <Card withBorder p="xs" style={{ position: "sticky", top: 72 }}>
-          <Tree
-            data={data}
-            tree={tree}
-            levelOffset="md"
-            expandOnClick={false}
-            renderNode={({ node, expanded, hasChildren, elementProps, selected }) => (
-              <Group gap={4} wrap="nowrap" {...elementProps} data-testid={`tree-${node.value || "all"}`}>
-                <UnstyledButton
-                  aria-label={expanded ? t("collapse") : t("expand")}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (hasChildren) tree.toggleExpanded(node.value);
-                  }}
-                  style={{ width: 16, visibility: hasChildren ? "visible" : "hidden" }}
+    <Flex gap="xl" align="flex-start" direction={{ base: "column", md: "row" }}>
+      {/* The tree alone at the left (as Bell's CMS.Net): a column of its own, scrolling by itself under the top bar. */}
+      <Card
+        withBorder
+        p="xs"
+        w={{ base: "100%", md: 300 }}
+        pos={{ base: "static", md: "sticky" }}
+        top={84}
+        mah={{ base: 360, md: "calc(100vh - 108px)" }}
+        style={{ flexShrink: 0, overflowY: "auto" }}
+        data-testid="tree"
+      >
+        <Tree
+          data={data}
+          tree={tree}
+          levelOffset="md"
+          expandOnClick={false}
+          renderNode={({ node, expanded, hasChildren, elementProps, selected }) => (
+            <Group gap={4} wrap="nowrap" {...elementProps} data-testid={`tree-${node.value || "all"}`}>
+              <UnstyledButton
+                aria-label={expanded ? t("collapse") : t("expand")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (hasChildren) tree.toggleExpanded(node.value);
+                }}
+                style={{ width: 16, visibility: hasChildren ? "visible" : "hidden" }}
+              >
+                {expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+              </UnstyledButton>
+              <UnstyledButton
+                onClick={() => open(node.value)}
+                style={{ flex: 1, minWidth: 0 }}
+                aria-current={selected ? "page" : undefined}
+              >
+                <Group
+                  gap={6}
+                  wrap="nowrap"
+                  py={3}
+                  px={4}
+                  style={{ borderRadius: 6 }}
+                  bg={selected ? "var(--mantine-color-blue-light)" : undefined}
                 >
-                  {expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-                </UnstyledButton>
-                <UnstyledButton
-                  onClick={() => open(node.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                  aria-current={selected ? "page" : undefined}
-                >
-                  <Group
-                    gap={6}
-                    wrap="nowrap"
-                    py={3}
-                    px={4}
-                    style={{ borderRadius: 6 }}
-                    bg={selected ? "var(--mantine-color-blue-light)" : undefined}
-                  >
-                    {expanded ? <IconFolderOpen size={16} /> : <IconFolder size={16} />}
-                    <Text size="sm" truncate fw={selected ? 600 : undefined} style={{ flex: 1 }}>
-                      {node.label}
-                    </Text>
-                    {node.value !== "" && (
-                      <Group gap={2} wrap="nowrap">
-                        {busy(node.value) > 0 && (
-                          <Badge size="xs" color="orange" variant="light">
-                            {busy(node.value)}
-                          </Badge>
-                        )}
-                        <Badge size="xs" color="gray" variant="light">
-                          {count(node.value)}
+                  {node.value === "" ? (
+                    <IconLayoutDashboard size={16} />
+                  ) : expanded ? (
+                    <IconFolderOpen size={16} />
+                  ) : (
+                    <IconFolder size={16} />
+                  )}
+                  <Text size="sm" truncate fw={selected ? 600 : undefined} style={{ flex: 1 }}>
+                    {node.label}
+                  </Text>
+                  {node.value !== "" && (
+                    <Group gap={2} wrap="nowrap">
+                      {busy(node.value) > 0 && (
+                        <Badge size="xs" color="orange" variant="light">
+                          {busy(node.value)}
                         </Badge>
-                      </Group>
-                    )}
-                  </Group>
-                </UnstyledButton>
-              </Group>
-            )}
-          />
-        </Card>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, md: 8, lg: 9 }}>
+                      )}
+                      <Badge size="xs" color="gray" variant="light">
+                        {count(node.value)}
+                      </Badge>
+                    </Group>
+                  )}
+                </Group>
+              </UnstyledButton>
+            </Group>
+          )}
+        />
+      </Card>
+      <Box w="100%" style={{ flex: 1, minWidth: 0 }}>
         {here === "" ? (
           <Dashboard me={me} entries={files} releases={releases} building={building} preview={preview} />
         ) : (
@@ -244,8 +260,8 @@ export function Explorer({
             open={open}
           />
         )}
-      </Grid.Col>
-    </Grid>
+      </Box>
+    </Flex>
   );
 }
 
@@ -280,13 +296,13 @@ function Folder({
       : [undefined, undefined];
   const label = types.find((x) => x.type === type)?.label ?? type ?? "";
   return (
-    <Stack gap="md">
+    <Stack gap="lg">
       <div>
         <Text size="xs" c="dimmed" ff="monospace" data-testid="folder-path">
           /{path.join("/")}
         </Text>
         <Group justify="space-between" gap="sm">
-          <Title order={1} fz={22}>
+          <Title order={1} fz={24}>
             {String(node.label)}
           </Title>
           {kind === "content" && (
@@ -834,22 +850,32 @@ function Dashboard({
   const flow = fs.filter((e) => e.file!.status === "in_workflow");
   const people = [...new Set([...held, ...flow].map((e) => e.file!.owner ?? ""))].filter(Boolean).sort();
   const recent = [...fs].sort((a, b) => b.file!.atTime - a.file!.atTime).slice(0, 12);
-  const stat = (label: string, n: number | string, href?: string, test?: string) => (
-    <Card withBorder padding="sm" data-testid={test}>
-      <Text size="xs" c="dimmed">
+  /** A count in a card of its own: its label, the number, a way to the page that lists them. */
+  const stat = (label: string, n: number, href?: string, test?: string) => (
+    <Card withBorder padding="md" data-testid={test}>
+      <Text size="sm" c="dimmed">
         {label}
       </Text>
-      <Group justify="space-between" mt={2}>
-        <Text fz={26} fw={700}>
-          {n}
-        </Text>
-        {href && (
-          <Button component={Link} href={href} variant="light" size="compact-xs">
-            {t("open")}
-          </Button>
-        )}
-      </Group>
+      <Text fz={30} fw={700} lh={1.2} mt={6}>
+        {n}
+      </Text>
+      {href && (
+        <Anchor component={Link} href={href} size="xs" mt={6}>
+          {t("open")} →
+        </Anchor>
+      )}
     </Card>
+  );
+  /** One of the sites: what it shows now. */
+  const site = (label: string, value: string) => (
+    <div>
+      <Text size="sm" c="dimmed">
+        {label}
+      </Text>
+      <Text fz={20} fw={700} mt={4}>
+        {value}
+      </Text>
+    </div>
   );
   const chip = (e: Entry) => (
     <Anchor key={e.key} component={Link} href={e.href} size="xs">
@@ -864,16 +890,16 @@ function Dashboard({
     </Anchor>
   );
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       <div>
-        <Title order={1} fz={22}>
+        <Title order={1} fz={24}>
           {t("dashboard.title")}
         </Title>
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="dimmed" mt={4}>
           {t("dashboard.lead")}
         </Text>
       </div>
-      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }}>
+      <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="md">
         {stat(t("dashboard.mine"), held.filter((e) => e.file!.owner === me).length, "/mine/", "stat-mine")}
         {stat(t("dashboard.held"), held.length, undefined, "stat-held")}
         {stat(
@@ -883,9 +909,8 @@ function Dashboard({
         )}
         {stat(t("dashboard.preview"), flow.filter((e) => e.file!.stage === "preview").length, "/workflow/")}
         {stat(t("dashboard.fresh"), fs.filter((e) => e.file!.fresh).length)}
-        {stat(t("dashboard.releases"), `#${releases.preview ?? "–"} / #${releases.production ?? "–"}`)}
       </SimpleGrid>
-      <Card withBorder>
+      <Card withBorder padding="lg">
         <Title order={2} fz={18} mb={4}>
           {t("dashboard.who")}
         </Title>
@@ -926,7 +951,7 @@ function Dashboard({
           </Text>
         )}
       </Card>
-      <Card withBorder>
+      <Card withBorder padding="lg">
         <Title order={2} fz={18} mb="sm">
           {t("dashboard.recent")}
         </Title>
@@ -960,34 +985,43 @@ function Dashboard({
           </Table>
         </Table.ScrollContainer>
       </Card>
-      <Card withBorder padding="sm">
-        <Group justify="space-between">
+      <Card withBorder padding="lg" data-testid="sites">
+        <Title order={2} fz={18} mb="md">
+          {t("dashboard.sites")}
+        </Title>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
+          {site(t("dashboard.previewSite"), t("dashboard.release", { id: releases.preview ?? "–" }))}
+          {site(t("dashboard.productionSite"), t("dashboard.release", { id: releases.production ?? "–" }))}
           <div>
-            <Text size="sm" fw={600}>
-              {t("cmsSite")}
-            </Text>
-            <Text size="xs" c="dimmed">
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">
+                {t("cmsSite")}
+              </Text>
+              <Badge size="sm" color={building ? "yellow" : "green"}>
+                {building ? t("rebuilding") : t("ready")}
+              </Badge>
+            </Group>
+            <Group gap="xs" mt={8}>
+              <Button component="a" href={preview} target="_blank" variant="default" size="xs">
+                {t("openPreview")}
+              </Button>
+              <Button
+                variant="light"
+                size="xs"
+                leftSection={<IconRefresh size={14} />}
+                disabled={building}
+                onClick={async () => {
+                  if (report(await rebuildCmsSiteAction(), t("rebuildStarted"))) router.refresh();
+                }}
+              >
+                {t("rebuild")}
+              </Button>
+            </Group>
+            <Text size="xs" c="dimmed" mt={6}>
               {t("cmsSiteHelp")}
             </Text>
           </div>
-          <Group gap="xs">
-            <Badge color={building ? "yellow" : "green"}>{building ? t("rebuilding") : t("ready")}</Badge>
-            <Button component="a" href={preview} target="_blank" variant="default" size="xs">
-              {t("openPreview")}
-            </Button>
-            <Button
-              variant="light"
-              size="xs"
-              leftSection={<IconRefresh size={14} />}
-              disabled={building}
-              onClick={async () => {
-                if (report(await rebuildCmsSiteAction(), t("rebuildStarted"))) router.refresh();
-              }}
-            >
-              {t("rebuild")}
-            </Button>
-          </Group>
-        </Group>
+        </SimpleGrid>
       </Card>
     </Stack>
   );
