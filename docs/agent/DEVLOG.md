@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-15 (b): v1.0.1 and v1.1.0
+
+- v1.0.1: OpenCC writes 扩展 as the IT term 擴充套件; mapped to 擴展 (src/lib/hant.ts). The 首页 lead was fixed in
+  the CMS itself (checked in, release 2 pushed to preview); production waits for the owner's click (the agent's push to
+  production was refused by the permission check, so it is left to the owner).
+- v1.1.0: 推到正式站 refused while the website had commits not pushed, and the push rules keep small website commits
+  local: it would have been blocked most of the time. It now publishes from a worktree at origin/main, content alone.
+  Its test (a bare repository as GitHub) found spawn with shell: true splitting the commit message: shell only for
+  npx.cmd now (mistake 5).
+
 ## 2026-11-15: v1.0.0, the CMS
 
 - The owner's request and the decisions C1–C4 are in docs/tech-plan.md. This repository (github leonfighter1/

@@ -1,6 +1,6 @@
 {
   "name": "cameyware-web-cms",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "The content management system of the Cameyware website: pages, blocks, texts in four languages, check-in and releases.",

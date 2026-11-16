@@ -18,6 +18,16 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 - **Fix:** `isArray` by the element's path (`cms.page`, `cms.texts.text`; `item` anywhere).
 - **Rule:** decide an XML list by its path in the document; test every round trip with the real catalog's fields.
 
+## 5. spawn with shell: true joins the arguments unquoted
+
+- **Symptom:** 推到正式站 pushed nothing: the commit 「Content: release 1 (tester)」 failed (found by tests/publish.test.ts
+  against a bare repository).
+- **Cause:** every command was spawned with `shell: true` on Windows, which joins the arguments with spaces and no
+  quotes: the message came apart at its spaces and brackets.
+- **Fix:** `shell` only for npx.cmd (a .cmd needs it); git runs directly.
+- **Rule:** spawn an .exe without a shell; when a .cmd needs one, give it no argument with a space. Test a git step
+  against a bare repository, never against GitHub.
+
 ## 4. A server component can't use Mantine's dotted parts
 
 - **Symptom:** /login answered 500: 「Element type is invalid: expected a string … but got: undefined」, and npm start's

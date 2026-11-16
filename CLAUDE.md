@@ -31,8 +31,9 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
    one-time code. No password, no account here. `content` edits, checks in and pushes to preview; 管理员 and 超级管理员
    push to production.
 5. **Every change is a draft until it is checked in;** only a release reaches preview, and only the release preview shows
-   reaches production. 推到正式站 commits `content/site.json` alone to the website's repository and pushes it (C2), and
-   refuses while that repository is behind GitHub or holds code commits not pushed.
+   reaches production. 推到正式站 commits `content/site.json` alone on top of GitHub's main, from a temporary worktree,
+   and pushes it (C2): a developer's commits not pushed yet never go out with it. Its git steps are tested against a
+   bare repository (`tests/publish.test.ts`), never against GitHub.
 6. **freeform runs sandboxed** (C3): the website's view puts it in an iframe without same-origin. Never render a
    freeform's HTML into the page itself. rich_text is sanitised here (catalog allowlist) and again by the website's
    build.

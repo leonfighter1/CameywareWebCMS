@@ -6,14 +6,15 @@
  *               (NEXT_DIST_DIR=.cms-build/preview), then swapped into the folder 禄命秘解's server serves as
  *               preview.cameyware.com (the website's out/). A failed build leaves preview as it was. 禄命秘解's npm run all
  *               builds from the same file, so a restart there keeps it.
- *   production  the release → the website's content/site.json, committed alone and pushed to GitHub's main (C2);
- *               Cloudflare Pages builds www.cameyware.com from it. Refused when the website's repository is behind
- *               GitHub or holds commits of code not pushed yet: those are a developer's to push, not the CMS's.
+ *   production  the release → content/site.json, committed alone on top of GitHub's main from a worktree of its own and
+ *               pushed (C2); Cloudflare Pages builds www.cameyware.com from it. A developer's commits not pushed yet
+ *               stay where they are: the CMS only ever pushes content.
  *   cms         the website built in CMS mode (NEXT_PUBLIC_CMS=on) into deploy/cms/site, which the CMS's preview server
  *               serves: needed after the website's code changes, never after content (that comes live).
  */
 import { spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { db } from "./db";
 import { deployDir, siteRepo } from "./paths";
@@ -29,16 +30,20 @@ import {
 
 const win = process.platform === "win32";
 
-/** [cmd] in [cwd]; its output goes to [log]; resolves with its exit code. */
+/**
+ * [cmd] in [cwd]; its output goes to [log]; resolves with its exit code. [shell] only for a .cmd (npx on Windows): a
+ * shell joins the arguments unquoted, so a commit message with spaces would come apart.
+ */
 function run(
   cmd: string,
   args: string[],
   cwd: string,
   env: Record<string, string>,
   log: (s: string) => void,
+  shell = false,
 ): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, shell: win });
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, shell });
     child.stdout.on("data", (d: Buffer) => log(d.toString()));
     child.stderr.on("data", (d: Buffer) => log(d.toString()));
     child.on("error", (e) => {
@@ -49,10 +54,10 @@ function run(
   });
 }
 
-/** git in the website's repository: its output, or a refusal with it. */
-async function git(args: string[], log: (s: string) => void): Promise<string> {
+/** git in the website's repository (or [cwd]): its output, or a refusal with it. */
+async function git(args: string[], log: (s: string) => void, cwd = siteRepo()): Promise<string> {
   let out = "";
-  const code = await run("git", args, siteRepo(), {}, (s) => {
+  const code = await run("git", args, cwd, {}, (s) => {
     out += s;
     log(s);
   });
@@ -87,6 +92,7 @@ async function buildSite(
     siteRepo(),
     { CMS_CONTENT: contentFile, NEXT_DIST_DIR: distDir, ...env },
     log,
+    win,
   );
   if (code !== 0 || !existsSync(join(siteRepo(), distDir, "index.html")))
     throw new Error(`网站构建失败（${code}）`);
@@ -114,26 +120,33 @@ async function toPreview(pg: Pg, release: number, by: string, log: (s: string) =
   log("\n预览站已换成这一版（preview.cameyware.com）。\n");
 }
 
+/**
+ * The release as content/site.json on top of GitHub's main, from a worktree of its own (a temporary folder checked out at
+ * origin/main): the commit holds that file alone and is pushed as it is, so a developer's commits not pushed yet in the
+ * website's repository never go out with it, nor block it. That repository is one commit behind GitHub afterwards; its
+ * next push fetches it first, as git asks.
+ */
 async function toProduction(pg: Pg, release: number, by: string, log: (s: string) => void) {
-  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"], log);
-  if (branch !== "main") throw new Error(`官网仓库现在在 ${branch} 分支上，要在 main 上才能推到正式站`);
   await git(["fetch", "origin", "main"], log);
-  const behind = Number(await git(["rev-list", "--count", "HEAD..origin/main"], log));
-  if (behind) throw new Error(`官网仓库落后 GitHub ${behind} 个提交：先拉取（git pull），再推到正式站`);
-  const ahead = await git(["rev-list", "origin/main..HEAD"], log);
-  if (ahead)
-    throw new Error("官网仓库里有还没推送的代码提交：请开发人员先推送，再推到正式站（CMS 只推送内容）");
-  const content = await contentFor(pg, release, "production", by);
-  writeFileSync(join(siteRepo(), "content", "site.json"), JSON.stringify(content, null, 2) + "\n");
-  const changed = await git(["status", "--porcelain", "--", "content/site.json"], log);
-  if (!changed) {
-    log("\n正式站已经是这一版的内容，不需要提交。\n");
-    return;
+  const dir = join(tmpdir(), `cms-publish-${Date.now()}`);
+  await git(["worktree", "add", "--detach", dir, "origin/main"], log);
+  try {
+    const content = await contentFor(pg, release, "production", by);
+    writeFileSync(join(dir, "content", "site.json"), JSON.stringify(content, null, 2) + "\n");
+    const changed = await git(["status", "--porcelain", "--", "content/site.json"], log, dir);
+    if (!changed) {
+      log("\n正式站已经是这一版的内容，不需要提交。\n");
+      return;
+    }
+    await git(["add", "--", "content/site.json"], log, dir);
+    await git(["commit", "-m", `Content: release ${release} (${by})`, "--", "content/site.json"], log, dir);
+    await git(["push", "origin", "HEAD:main"], log, dir);
+    log("\n已推送到 GitHub；Cloudflare Pages 会在几分钟内构建并上线 www.cameyware.com。\n");
+  } finally {
+    await git(["worktree", "remove", "--force", dir], log).catch(() =>
+      rmSync(dir, { recursive: true, force: true }),
+    );
   }
-  await git(["add", "--", "content/site.json"], log);
-  await git(["commit", "-m", `Content: release ${release} (${by})`, "--", "content/site.json"], log);
-  await git(["push", "origin", "HEAD:main"], log);
-  log("\n已推送到 GitHub；Cloudflare Pages 会在几分钟内构建并上线 www.cameyware.com。\n");
 }
 
 /** The CMS's own preview: the website in CMS mode, with what is checked in now as its starting content. */
