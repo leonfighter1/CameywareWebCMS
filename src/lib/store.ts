@@ -6,13 +6,17 @@
  * refused unless the file is checked out by whoever saves it (files.ts); a file made now is theirs.
  */
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
+import { format, resolveConfig } from "prettier";
 import { bundleLabel, bundleOf, bundleState } from "./bundles";
 import { both, checkBlock, check, defaults, fieldsOf, GLOBALS, ICONS, TYPES } from "./catalog";
 import type { Db } from "./db";
 import { claimNew, fileStates, type FileRow, KINDS, type Kind, mustHold } from "./files";
 import { canonical } from "./json";
 import { type Placement, placement } from "./pages";
+import { siteRepo } from "./paths";
 import { type Both, CmsError, msg } from "./words";
+import { checkViewCode, codePath } from "@/generated/code";
 import { isBuiltinLayout, isRowKey, LAYOUT_FIELDS, LAYOUTS } from "@/generated/layouts";
 import {
   GLOBAL_KEYS,
@@ -85,6 +89,14 @@ export interface GlobalRow {
 export interface TextRow {
   key: string;
   value: L10n;
+  updated_at: string;
+  updated_by: string;
+}
+
+/** A type's built-in template (S6): the source of the website's src/cms/views/<id>.tsx. */
+export interface CodeRow {
+  id: string;
+  source: string;
   updated_at: string;
   updated_by: string;
 }
@@ -176,6 +188,14 @@ export async function listTemplates(db: Db, type?: string): Promise<TemplateRow[
 
 export async function getTemplate(db: Db, id: string): Promise<TemplateRow | undefined> {
   return (await db.query<TemplateRow>(`select * from templates where id = $1`, [id])).rows[0];
+}
+
+export async function listCode(db: Db): Promise<CodeRow[]> {
+  return (await db.query<CodeRow>(`select * from code_files order by id`)).rows;
+}
+
+export async function getCode(db: Db, id: string): Promise<CodeRow | undefined> {
+  return (await db.query<CodeRow>(`select * from code_files where id = $1`, [id])).rows[0];
 }
 
 // ---- the state a file is checked in with ---------------------------------------------------------------------
@@ -277,6 +297,18 @@ export async function workingStates(db: Db) {
       at: g.updated_at,
       by: g.updated_by,
     });
+  for (const c of await listCode(db)) {
+    const t = both(TYPES[c.id], c.id);
+    put({
+      kind: "code",
+      id: c.id,
+      state: { source: c.source },
+      deleted: false,
+      label: { zh: `${t.zh} · ${c.id}.tsx`, en: `${t.en} · ${c.id}.tsx` },
+      at: c.updated_at,
+      by: c.updated_by,
+    });
+  }
   const bundles = new Map<string, TextRow[]>();
   for (const t of await listTexts(db))
     bundles.set(bundleOf(t.key), [...(bundles.get(bundleOf(t.key)) ?? []), t]);
@@ -651,6 +683,34 @@ export const layoutLabel = (name: string, layouts: LayoutRow[], lang: "zh" | "en
 
 // ---- the UI texts, by their bundle -----------------------------------------------------------------------------
 
+// ---- the built-in templates' code (S6) --------------------------------------------------------------------------
+
+/** Every problem with [source] as the built-in template of [type] (the website's code.ts), as messages. */
+export function codeProblems(type: string, source: string) {
+  return checkViewCode(source, type).map((p) => {
+    const v: Record<string, string | number> = { ...p.values };
+    if (typeof v.tag === "string") v.tag = `<${v.tag}>`;
+    return msg(`codeCheck.${p.code}`, v);
+  });
+}
+
+/**
+ * A built-in template's code saved: [by]'s, checked by the website's rules, and laid out by the website's own Prettier
+ * settings, so the file that goes onto the branch is the one the CMS keeps (and the website's lint passes it).
+ */
+export async function saveCode(db: Db, id: string, source: string, by: string) {
+  await mustHold(db, "code", id, by);
+  const problems = codeProblems(id, source);
+  if (problems.length) throw new CmsError("errors.codeProblems", undefined, problems);
+  const file = join(siteRepo(), codePath(id));
+  const laid = await format(source, { ...((await resolveConfig(file)) ?? {}), filepath: file });
+  await db.query(`update code_files set source = $2, updated_at = now(), updated_by = $3 where id = $1`, [
+    id,
+    laid,
+    by,
+  ]);
+}
+
 export const isTextKey = (key: string) => /^[A-Za-z][\w-]*(\.[\w-]+)+$/.test(key);
 
 /** A text saved: its bundle must be yours (a text of a bundle that doesn't exist yet makes it, yours). */
@@ -737,6 +797,13 @@ export async function writeWorking(db: Db, kind: Kind, id: string, state: unknow
        on conflict (id) do update set type = $2, name = $3, markup = $4, deleted = false, updated_at = now(), updated_by = $5`,
       [id, s.type, s.name, s.markup, by],
     );
+  } else if (kind === "code") {
+    // A built-in template is never deleted: its type keeps a view in the website.
+    await db.query(
+      `insert into code_files (id, source, updated_by) values ($1, $2, $3)
+       on conflict (id) do update set source = $2, updated_at = now(), updated_by = $3`,
+      [id, (state as { source: string }).source, by],
+    );
   } else if (kind === "bundle") {
     // The bundle's texts as [state] has them: the others of its namespace go.
     const texts = (state ?? {}) as Record<string, L10n>;
@@ -770,6 +837,7 @@ export async function forget(db: Db, kind: Kind, id: string) {
     layout: `delete from layouts where id = $1`,
     global: `delete from globals where key = $1`,
     bundle: `delete from texts where split_part(key, '.', 1) = $1`,
+    code: `delete from code_files where id = $1`,
   };
   await db.query(where[kind], [id]);
   await db.query(`delete from items where kind = $1 and id = $2`, [kind, id]);

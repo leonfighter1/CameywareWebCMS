@@ -29,6 +29,7 @@ import { report } from "@/components/result";
 import type { FileView, VersionView } from "@/lib/present";
 import { zonesOfMarkup } from "@/generated/layouts";
 import { checkLayoutAction, deleteLayoutAction, saveLayoutAction } from "../../actions";
+import { NEW_TAB } from "@/components/links";
 
 const LOCALES = [
   { value: "zh", label: "简" },
@@ -233,7 +234,14 @@ export function LayoutEditor({
             {inIt.length ? (
               <Group gap="xs">
                 {inIt.map((p) => (
-                  <Anchor key={p.id} component={Link} href={`/pages/${p.id}`} size="sm" ff="monospace">
+                  <Anchor
+                    key={p.id}
+                    component={Link}
+                    {...NEW_TAB}
+                    href={`/pages/${p.id}`}
+                    size="sm"
+                    ff="monospace"
+                  >
                     {p.path}
                   </Anchor>
                 ))}

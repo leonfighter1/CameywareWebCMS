@@ -58,6 +58,7 @@ import {
   rebuildCmsSiteAction,
   takeAction,
 } from "./actions";
+import { NEW_TAB } from "@/components/links";
 
 /** A row of a folder: a file (or a type's built-in template) with what the list says of it. */
 export type Entry = {
@@ -653,6 +654,7 @@ function FileList({
                       {e.builtin && <IconCode size={14} />}
                       <Anchor
                         component={Link}
+                        {...NEW_TAB}
                         href={e.href}
                         size="sm"
                         ff={e.mono ? "monospace" : undefined}
@@ -668,7 +670,7 @@ function FileList({
                     )}
                   </Table.Td>
                   <Table.Td>
-                    {e.builtin ? (
+                    {e.builtin && !e.file ? (
                       <Badge size="xs" color="gray" variant="outline" style={{ minWidth: "max-content" }}>
                         {t("builtinState")}
                       </Badge>
@@ -688,6 +690,7 @@ function FileList({
                         <Text size="xs">{e.file.by || "—"}</Text>
                         <Anchor
                           component={Link}
+                          {...NEW_TAB}
                           href={`${e.href}${e.href.includes("?") ? "&" : "?"}versions=1`}
                           size="xs"
                         >
@@ -912,7 +915,7 @@ function Dashboard({
         {n}
       </Text>
       {href && (
-        <Anchor component={Link} href={href} size="xs" mt={6}>
+        <Anchor component={Link} {...NEW_TAB} href={href} size="xs" mt={6}>
           {t("open")} →
         </Anchor>
       )}
@@ -930,7 +933,7 @@ function Dashboard({
     </div>
   );
   const chip = (e: Entry) => (
-    <Anchor key={e.key} component={Link} href={e.href} size="xs">
+    <Anchor key={e.key} component={Link} {...NEW_TAB} href={e.href} size="xs">
       <Badge
         size="sm"
         variant="light"
@@ -1024,7 +1027,13 @@ function Dashboard({
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Anchor component={Link} href={e.href} size="sm" ff={e.mono ? "monospace" : undefined}>
+                    <Anchor
+                      component={Link}
+                      {...NEW_TAB}
+                      href={e.href}
+                      size="sm"
+                      ff={e.mono ? "monospace" : undefined}
+                    >
                       {e.name}
                     </Anchor>
                   </Table.Td>

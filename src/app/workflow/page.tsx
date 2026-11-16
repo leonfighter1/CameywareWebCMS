@@ -3,35 +3,30 @@ import { canPublish } from "@/lib/auth";
 import { previewBase, productionBase } from "@/lib/hosts";
 import { ADDRESSES } from "@/lib/paths";
 import { fileView, when } from "@/lib/present";
-import { deployments, diff, environments, readLog, releases } from "@/lib/releases";
+import { deploymentPage, deployments, environments, readLog } from "@/lib/releases";
 import { database, host, language, requireUser } from "@/lib/server";
 import { files } from "@/lib/workflow";
 import { Board } from "./board";
 
 /**
  * 工作流 (the owner, 2026-11-15, on the 发布 page: 「我们可以添加一个退回签入step, 在签入的step我们也可以添加terminate
- * workflow的功能」): the files at 已签入 and at 预览站, each step on the ones you pick, every deployment's log, and the
- * releases production can go back to.
+ * workflow的功能」; S6: 「workflow只针对可查找的workflow进度，为了页面干净，可以显示当前的deployment进度，至于以往的log
+ * 可以又专门的地方查看」): the files at 已签入 and at 预览站, each step on the ones you pick, and the deployment running
+ * now (none: the last one, its log a link). Every deployment and every release are on /deployments.
  */
 export default async function WorkflowPage() {
   const user = await requireUser();
   const lang = await language();
   const pg = await database();
-  const [all, envs, list, runs] = await Promise.all([
+  const [all, envs, recent, { total }] = await Promise.all([
     files(pg),
     environments(pg),
-    releases(pg),
-    deployments(pg),
+    // At most one runs per site: the latest few hold them.
+    deployments(pg, 5),
+    deploymentPage(pg, { page: 1, size: 0 }),
   ]);
   const inWorkflow = all.filter((f) => f.status === "in_workflow");
-  // How far each release production showed is from what it shows now: what going back to it would change.
-  const differs = Object.fromEntries(
-    await Promise.all(
-      list
-        .filter((r) => r.manifest && r.went.includes("production") && r.id !== envs.production.release)
-        .map(async (r) => [r.id, (await diff(pg, envs.production.release, r.id)).length] as const),
-    ),
-  );
+  const running = recent.filter((d) => d.status === "running");
   const lang2 = lang === "en" ? "en" : "zh";
   return (
     <Frame>
@@ -48,8 +43,7 @@ export default async function WorkflowPage() {
             by: envs.production.by,
           },
         }}
-        releases={list.map((r) => ({ ...r, at: when(r.created_at, lang), differs: differs[r.id] }))}
-        runs={runs.map((d) => ({
+        runs={(running.length ? running : recent.slice(0, 1)).map((d) => ({
           id: d.id,
           env: d.env,
           action: d.action,
@@ -58,8 +52,9 @@ export default async function WorkflowPage() {
           items: d.items.length,
           by: d.author,
           at: when(d.started_at, lang),
-          log: readLog(d.log, lang).slice(-12000),
+          log: d.status === "running" ? readLog(d.log, lang).slice(-12000) : "",
         }))}
+        total={total}
         links={{
           cms: `${previewBase(await host())}/${lang2}/`,
           preview: `${ADDRESSES.company.preview}/${lang2}/`,

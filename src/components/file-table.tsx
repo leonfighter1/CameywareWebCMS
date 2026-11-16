@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { fileHref, type FileView } from "@/lib/present";
 import { StateBadges } from "./files";
+import { NEW_TAB } from "@/components/links";
 
 export const keyOf = (f: { kind: string; id: string }) => `${f.kind}:${f.id}`;
 
@@ -81,7 +82,7 @@ export function FileTable({
                 </Badge>
               </Table.Td>
               <Table.Td>
-                <Anchor component={Link} href={fileHref(f.kind, f.id)} size="sm">
+                <Anchor component={Link} {...NEW_TAB} href={fileHref(f.kind, f.id)} size="sm">
                   {f.label}
                 </Anchor>
               </Table.Td>

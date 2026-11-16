@@ -202,6 +202,44 @@ alone), the editor's empty rows saved when their first component is.
 | WP28 | The editor: 新的一行, rows with a bar (drag, up, down, delete), components side by side (drag, left, right, which half they are dropped on), moves shown at once            |
 | WP29 | The WebPage's `RowId` both ways; checks: the row functions, a row to the website and through a WebPage, a bad key; a browser walk                                           |
 
+## S6 Built-in templates as files, a cms-preview branch; the deployment history; links in new tabs (big: CMS v6.0.0, website v2.4.0)
+
+**The owner (2026-11-16):**
+
+> for all the builtin template, don't have download and upload of code. we should be able to checkout and replace the
+> same file from local file. The file's status should follow the same statuses like reglar files. however, we should
+> have version controls. while we upload a new template file, for cms-preview branch should be created and allow us to
+> run push for the files. what do you suggest
+
+then, on the suggestion (one file per template, the same statuses and versions, a `cms-preview` branch, 超级管理员 only,
+imports checked):
+
+> we should be able to view the file, download the file upload the file, if file never taken by others, it should be
+> automatically replaced
+
+> 给deployments添加一个新的link， 当前的deployment只显示当前的。要查看所有的可以查看。还有很多link最好都可以打开新的tab，
+> 否则很容易丢失自己从哪里打开的，比如edit component，check views check pages等等
+
+> workflow只针对可查找的workflow进度，为了页面干净，可以显示当前的deployment进度，至于以往的log可以又专门的地方查看，
+> 比如查看所有deployment history（添加分页和查找 和filter等功能）
+
+**Read as:** each type's built-in template is a file of the website (`src/cms/views/<type>.tsx`) and a CMS file (kind
+`code`): its state, versions and workflow like any file; viewed, downloaded, and replaced by an upload of the same file
+(taken by the uploader when nobody has it; 超级管理员 alone, since it is code every visitor runs), checked by the
+website's rules. Preview is built on the branch `cms-preview` (main with a commit per file at 预览站), production gets
+the files with `content/site.json` on GitHub's main, linted and built first. The built-in layouts stay code (a few
+shared lines of `render.tsx`, not files). The 工作流 page keeps the workflow's progress and the deployment running now;
+every deployment and release go to a history page with search, filters and pages; links to editors and lists open new
+tabs.
+
+| WP   | What                                                                                                                                                                                                  |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP30 | The website: `views.tsx` split into `views/<type>.tsx` (+ `parts.tsx`, `index.ts`); `code.ts` `checkViewCode` (imports, globals, properties, elements, raw HTML but where the view needs it)          |
+| WP31 | The CMS: kind `code` (migration 5, `code_files`), `saveCode` (checked, laid out by the website's Prettier), the code's latest taken in at start and on its page (`addCodeFiles`)                      |
+| WP32 | The branch: `code.ts` (the worktree `.cms-tree`, `codeChanges` with the code's own changes refused, `checkout`, lint); preview on `cms-preview`, production on GitHub's main, rollback leaves code    |
+| WP33 | The built-in template's page: its file bar, versions with downloads, the code, 下载, 上传替换 (auto-take, 超级管理员); the explorer shows its state; 禄命秘解's `npm run all` builds on `cms-preview` |
+| WP34 | 部署记录 (`/deployments`: search, site, state and step filters, 50 a page; a deployment's own page with its log and files; 所有版本 as its second tab); the 工作流 page's 当前部署; links in new tabs |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -235,6 +273,37 @@ alone), the editor's empty rows saved when their first component is.
 | WP27 | done                                         | v5.0.0                 |
 | WP28 | done                                         | v5.0.0                 |
 | WP29 | done                                         | v5.0.0, website v2.3.0 |
+| WP30 | done                                         | website v2.4.0         |
+| WP31 | done                                         | v6.0.0                 |
+| WP32 | done                                         | v6.0.0, website v2.4.0 |
+| WP33 | done                                         | v6.0.0                 |
+| WP34 | done                                         | v6.0.0                 |
+
+## 阶段总结 S6 (v6.0.0, 2026-11-16)
+
+1. **Delivered:** WP30 the website's views one file each and `checkViewCode` (website v2.4.0). WP31 kind `code`
+   (migration 5), `saveCode` (checked, laid out by the website's Prettier), `addCodeFiles` at start and on the page.
+   WP32 `src/lib/code.ts`: the worktree `.cms-tree`, `codeChanges` (the code's own change refuses a workflow file; a
+   text the CMS had is main behind it), preview on `cms-preview`, production with code linted and built before one
+   commit on GitHub's main, rollback leaves code. WP33 the built-in template's page (file bar, versions with downloads,
+   the code, 下载, 上传替换 with auto-take, 超级管理员 only), the explorer's state, 禄命秘解's `npm run all` on
+   `cms-preview`. WP34 部署记录 (search, filters, pages, a page per deployment, 所有版本 there), the 工作流 page's
+   当前部署, `NEW_TAB` on 16 links.
+2. **Numbers:** CMS 48 unit tests (44 before; 4 for code files against a bare repository); website 40 (36 before); a
+   browser walk: a bad and a wrongly named upload refused, a good one taken and laid out, checked in (the CMS preview
+   showed it), pushed to preview on `cms-preview` (5 files of preview's build carried it), found by search, its log in
+   a new tab, then 退回签入, 终止 and 丢弃 back to main's code; production untouched.
+3. **Against the plan:** the built-in layouts stay code (a few shared lines of render.tsx); the checkout lives inside
+   the website (git-ignored) so the website's node_modules serve it, with Turbopack's root named (`CMS_TURBOPACK_ROOT`)
+   rather than a second `npm ci`; the owner's two mid-way requests (deployment history, new tabs) joined the stage as
+   WP34, with 所有版本 moved to the history too, since the 工作流 page keeps progress alone.
+4. **Mistakes:** CMS 13 (vitest from a lower-case `c:\` loads twice), 14 (Windows PowerShell drops `--`, so `npm start
+-- --build` started the old build); website 33 (a folder another tool writes inside the repository goes into every
+   ignore list). The walk's first check of preview's build used grep, which node couldn't find: a check that can fail
+   silently proves nothing, so it now reads the files itself.
+5. **Next:** website v2.1.0–v2.4.0 on GitHub (the owner's push) before a built-in template can reach production (the
+   CMS refuses with `errors.codeMissing` until then); Cloudflare's branch previews stay off for `cms-preview`, which
+   lives on this PC alone.
 
 ## 阶段总结 S5 (v5.0.0, 2026-11-16)
 

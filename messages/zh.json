@@ -12,7 +12,8 @@
       "explorer": "内容树",
       "mine": "我的文件",
       "workflow": "工作流",
-      "transfer": "下载与上传"
+      "transfer": "下载与上传",
+      "deployments": "部署记录"
     }
   },
   "roles": {
@@ -79,9 +80,11 @@
       "text": "文字",
       "template": "模板",
       "bundle": "资源包",
-      "layout": "页面布局"
+      "layout": "页面布局",
+      "code": "内置模板代码"
     },
-    "busy": "正在部署"
+    "busy": "正在部署",
+    "downloadVersion": "下载这个版本"
   },
   "fields": {
     "linkHint": "/works/… 或 https://…",
@@ -250,7 +253,7 @@
     "stagePreviewHelp": "选文件推到正式站（只推选的，预览站上别的文件留着）；或退回签入：预览站重新构建，不再有它们。",
     "emptyPreview": "预览站上没有等着上正式站的文件。",
     "toProductionTitle": "把 {n} 个文件推到正式站？",
-    "toProductionBody": "正式站的内容加上这些文件，提交到官网仓库（content/site.json）并推送到 GitHub，Cloudflare Pages 几分钟后上线 www.cameyware.com。请先在预览站检查过。",
+    "toProductionBody": "正式站的内容加上这些文件，提交到官网仓库（content/site.json，内置模板的代码也一起，先在 CMS 的官网副本里检查和构建）并推送到 GitHub，Cloudflare Pages 几分钟后上线 www.cameyware.com。请先在预览站检查过。",
     "toProductionShort": "推到正式站",
     "productionStarted": "开始推到正式站",
     "toProduction": "推到正式站（{n}）",
@@ -260,6 +263,10 @@
     "backStarted": "开始退回：预览站在重新构建",
     "onlyAdmins": "只有管理员和超级管理员能推到正式站。",
     "deployments": "部署记录",
+    "currentDeployment": "当前部署",
+    "allDeployments": "所有部署记录（{n}）",
+    "lastDeployment": "现在没有进行中的部署。上一次：",
+    "log": "日志",
     "cmsRebuildStarted": "开始重建 CMS 预览站，要几分钟",
     "rebuildCms": "重建 CMS 预览站",
     "status": {
@@ -286,6 +293,41 @@
     "rollbackBody": "正式站会整体换成这一版（和现在有 {n} 处不同），提交并推送；之后预览站自动重建。工作流里的文件不受影响。",
     "rollback": "正式站回到这一版",
     "rollbackStarted": "开始回滚正式站"
+  },
+  "deployments": {
+    "title": "部署记录",
+    "lead": "每次推到预览站或正式站、退回签入、回滚和重建都是一次部署，这里是全部，最新的在前。点“日志”在新标签页里看它的完整输出。",
+    "tabs": {
+      "deployments": "部署记录",
+      "releases": "所有版本"
+    },
+    "search": "查找",
+    "searchPlaceholder": "日志里的文字、文件、是谁，或版本号",
+    "env": "站点",
+    "allEnvs": "全部站点",
+    "status": "状态",
+    "allStatus": "全部状态",
+    "action": "做了什么",
+    "allActions": "全部",
+    "total": "共 {n} 次",
+    "columns": {
+      "id": "编号",
+      "status": "状态",
+      "what": "做了什么",
+      "files": "文件",
+      "by": "谁",
+      "started": "开始",
+      "finished": "结束"
+    },
+    "release": "第 {id} 版",
+    "log": "日志",
+    "none": "没有符合条件的部署。",
+    "one": "部署 #{id}",
+    "files": "这次部署的文件（{n}）",
+    "noFiles": "这次部署没有带文件（重新构建或回滚）。",
+    "back": "所有部署记录",
+    "running": "还在进行中：日志会自己刷新。",
+    "notFound": "没有这次部署"
   },
   "transfer": {
     "title": "下载与上传",
@@ -385,7 +427,27 @@
     "layoutInUse": "这个布局还有页面在用",
     "layoutNotComing": "页面用的新布局 {layout} 在 {owner} 名下，没法一起签入：先接手它",
     "layoutMissingAt": "页面 {path} 用的布局 {layout} 不在这一版里：把它一起推",
-    "importNoComponent": "没有组件「{path}」：先上传或新建它"
+    "importNoComponent": "没有组件「{path}」：先上传或新建它",
+    "codeSuperadmin": "只有超级管理员能拿取和替换内置模板的代码",
+    "codeFileName": "上传的文件要是 {file}（这次是 {got}）",
+    "codeProblems": "代码没有通过检查，什么都没有替换",
+    "codeMissing": "{ref} 上还没有 {file}：先推送官网的代码",
+    "codeChanged": "{ref} 上的 {file} 在 CMS 取用之后改过了（官网代码自己的改动）：丢弃这个文件，等 CMS 取用新代码后再改",
+    "codeConflict": "内置模板的代码有冲突，没有推",
+    "codeLint": "代码没有通过官网的检查（eslint，详情在部署记录里）"
+  },
+  "codeCheck": {
+    "empty": "代码是空的",
+    "tooLong": "代码太长了（最多 {max} 个字符）",
+    "syntax": "第 {line} 行：语法错误：{text}",
+    "useClient": "第一行要写 \"use client\";",
+    "noDefault": "要用 export default 导出这个类型的视图（一个组件）",
+    "import": "第 {line} 行：不能引入 {module}（只能引入网站的组件、图标和文字）",
+    "dynamicImport": "第 {line} 行：不能用 import() 动态引入",
+    "global": "第 {line} 行：不能用 {name}（联网、存储、别的窗口、把文字当代码运行和 Node 都不行）",
+    "property": "第 {line} 行：不能用 {name}（Cookie、把文字写成 HTML、发信标都不行）",
+    "element": "第 {line} 行：不能画 {tag} 元素",
+    "attribute": "第 {line} 行：不能用 {name}（只有图文和自由 HTML 的视图要用）"
   },
   "check": {
     "notList": "{path}：应该是一组（列表）",
@@ -491,7 +553,7 @@
     },
     "builtinName": "内置模板（代码）",
     "builtinState": "代码",
-    "builtinAbout": "写在官网代码里，CMS 里不能改",
+    "builtinAbout": "官网代码里的文件，超级管理员可以替换",
     "history": "版本记录",
     "noMatch": "没有符合的文件。",
     "empty": "这个文件夹是空的。",
@@ -608,10 +670,21 @@
     "previewTitle": "模板预览",
     "noPreview": "这个类型还没有区块在页面上，没有预览。",
     "builtinTitle": "「{type}」的内置模板",
-    "builtinBody": "内置模板写在官网的代码里（src/cms/views.tsx），CMS 里不能改。没选模板的区块都用它。要换个样子：新建一个模板，再在区块里选用它。",
+    "builtinBody": "内置模板是官网代码里的一个文件（{file}），没选样式的区块都用它。它和其他文件一样有状态和版本：超级管理员下载、改好后上传同一个文件替换它，签入后推到预览站（cms-preview 分支），再推到正式站（GitHub 的 main）。不改代码也想换个样子：新建一个模板，在页面上选用它。",
     "newFromFields": "新建一个模板（按这个类型的字段生成）",
     "created": "模板已新建（在你名下）",
-    "create": "新建"
+    "create": "新建",
+    "code": "代码",
+    "codeDownload": "下载",
+    "codeUpload": "上传替换",
+    "codeUploaded": "已替换草稿：签入后 CMS 预览会重建（一两分钟）",
+    "codeHelp": "上传的文件名要是 {file}。没人拿取时会自动拿取到你名下；在别人名下或在工作流里时不能上传。上传前会检查：只能引入网站的组件、图标和文字，不能联网、读写存储或 Cookie、把文字写成 HTML 或画脚本；会按官网的格式排版。推到预览站和正式站前还会过官网的 eslint 和构建。",
+    "codeOnlySuper": "只有超级管理员能拿取和替换代码；你可以查看和下载。",
+    "codeNoFile": "官网的代码（main）里还没有 {file}：更新官网的代码后，CMS 下次打开这里时会取用它。",
+    "standing": {
+      "changed": "官网的代码（main）里这个文件改过了，CMS 还没取用：它在谁名下或在工作流里时，推不到预览站。丢弃（或推完）后，CMS 下次打开这里时取用新的代码。",
+      "behind": "CMS 推到 GitHub 的版本还没拉到这台电脑的官网代码里（main 落后）：预览照样用 CMS 的版本。"
+    }
   },
   "markup": {
     "unknownTag": "第 {line} 行：没有 {tag} 这个元素",

@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { report } from "@/components/result";
 import { createLayoutAction } from "../../../actions";
+import { NEW_TAB } from "@/components/links";
 
 export function BuiltinLayout({
   name,
@@ -124,7 +125,14 @@ export function BuiltinLayout({
             {inIt.length ? (
               <Group gap="xs">
                 {inIt.map((p) => (
-                  <Anchor key={p.id} component={Link} href={`/pages/${p.id}`} size="sm" ff="monospace">
+                  <Anchor
+                    key={p.id}
+                    component={Link}
+                    {...NEW_TAB}
+                    href={`/pages/${p.id}`}
+                    size="sm"
+                    ff="monospace"
+                  >
                     {p.path}
                   </Anchor>
                 ))}

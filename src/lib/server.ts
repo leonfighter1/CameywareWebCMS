@@ -4,20 +4,24 @@
  */
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { canEdit, canPublish, SESSION_COOKIE, sessionUser, type User } from "./auth";
+import { canCode, canEdit, canPublish, SESSION_COOKIE, sessionUser, type User } from "./auth";
 import { db } from "./db";
 import { failInterrupted } from "./releases";
-import { addCodeTexts, seedIfEmpty } from "./seed";
+import { addCodeFiles, addCodeTexts, seedIfEmpty } from "./seed";
 import { CmsError, LANG_COOKIE, type Lang, langOf, say, sayAll } from "./words";
 
 const ready = globalThis as unknown as { cmsReady?: Promise<void> };
 
-/** The database, ready: on this process's first use, seeded if empty, the code's new texts in, interrupted deployments failed. */
+/**
+ * The database, ready: on this process's first use, seeded if empty, the code's new texts and built-in templates in,
+ * interrupted deployments failed.
+ */
 export async function database() {
   const pg = await db();
   ready.cmsReady ??= (async () => {
     await seedIfEmpty(pg);
     await addCodeTexts(pg);
+    await addCodeFiles(pg);
     await failInterrupted(pg);
   })();
   await ready.cmsReady;
@@ -53,6 +57,13 @@ export async function editor(): Promise<User> {
 export async function publisher(): Promise<User> {
   const user = await editor();
   if (!canPublish(user.role)) throw new CmsError("errors.cannotPublish");
+  return user;
+}
+
+/** An action's caller who may take or replace a built-in template's code (S6): 超级管理员. */
+export async function coder(): Promise<User> {
+  const user = await editor();
+  if (!canCode(user.role)) throw new CmsError("errors.codeSuperadmin");
   return user;
 }
 

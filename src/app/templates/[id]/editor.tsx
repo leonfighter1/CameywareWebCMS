@@ -30,6 +30,7 @@ import { report } from "@/components/result";
 import type { FieldRef, FileView, VersionView } from "@/lib/present";
 import { ELEMENTS } from "@/generated/template";
 import { checkTemplateAction, deleteTemplateAction, saveTemplateAction } from "../../actions";
+import { NEW_TAB } from "@/components/links";
 
 const LOCALES = [
   { value: "zh", label: "简" },
@@ -274,7 +275,7 @@ export function TemplateEditor({
             {drawn.length ? (
               <Group gap="xs">
                 {drawn.map((b) => (
-                  <Anchor key={b.id} component={Link} href={`/components/${b.id}`} size="sm">
+                  <Anchor key={b.id} component={Link} {...NEW_TAB} href={`/components/${b.id}`} size="sm">
                     {b.name}
                   </Anchor>
                 ))}

@@ -12,7 +12,8 @@
       "explorer": "Content tree",
       "mine": "My files",
       "workflow": "Workflow",
-      "transfer": "Download & upload"
+      "transfer": "Download & upload",
+      "deployments": "Deployments"
     }
   },
   "roles": {
@@ -79,9 +80,11 @@
       "text": "Text",
       "template": "Template",
       "bundle": "Bundle",
-      "layout": "Layout"
+      "layout": "Layout",
+      "code": "Built-in template code"
     },
-    "busy": "Deploying"
+    "busy": "Deploying",
+    "downloadVersion": "Download this version"
   },
   "fields": {
     "linkHint": "/works/… or https://…",
@@ -250,7 +253,7 @@
     "stagePreviewHelp": "Push the files you pick to production (those alone: the other files on preview stay there), or send them back to check-in: preview is built again without them.",
     "emptyPreview": "No file on preview is waiting for production.",
     "toProductionTitle": "Push {n, plural, one {# file} other {# files}} to production?",
-    "toProductionBody": "Production's content with these files is committed to the website's repository (content/site.json) and pushed to GitHub; Cloudflare Pages puts www.cameyware.com live in a few minutes. Check them on preview first.",
+    "toProductionBody": "Production's content with these files is committed to the website's repository (content/site.json, a built-in template's code with it, checked and built in the CMS's copy of the website first) and pushed to GitHub; Cloudflare Pages puts www.cameyware.com live in a few minutes. Check them on preview first.",
     "toProductionShort": "Push to production",
     "productionStarted": "Pushing to production",
     "toProduction": "Push to production ({n})",
@@ -260,6 +263,10 @@
     "backStarted": "Sending back: preview is being built again",
     "onlyAdmins": "Only administrators and super administrators push to production.",
     "deployments": "Deployments",
+    "currentDeployment": "Current deployment",
+    "allDeployments": "All deployments ({n})",
+    "lastDeployment": "No deployment is running now. The last one:",
+    "log": "Log",
     "cmsRebuildStarted": "Rebuilding the CMS preview: a few minutes",
     "rebuildCms": "Rebuild the CMS preview",
     "status": {
@@ -286,6 +293,41 @@
     "rollbackBody": "Production becomes this release as a whole ({n} differences from now), committed and pushed; preview is built again afterwards. The files in the workflow are not touched.",
     "rollback": "Production back to this one",
     "rollbackStarted": "Rolling production back"
+  },
+  "deployments": {
+    "title": "Deployments",
+    "lead": "Every push to preview or production, every move back, rollback and rebuild is a deployment: here are all of them, the newest first. “Log” opens one's whole output in a new tab.",
+    "tabs": {
+      "deployments": "Deployments",
+      "releases": "Releases"
+    },
+    "search": "Search",
+    "searchPlaceholder": "Words in the log, a file, who, or a release number",
+    "env": "Site",
+    "allEnvs": "All sites",
+    "status": "State",
+    "allStatus": "All states",
+    "action": "What it did",
+    "allActions": "All",
+    "total": "{n} in all",
+    "columns": {
+      "id": "No.",
+      "status": "State",
+      "what": "What it did",
+      "files": "Files",
+      "by": "Who",
+      "started": "Started",
+      "finished": "Finished"
+    },
+    "release": "release {id}",
+    "log": "Log",
+    "none": "No deployment matches.",
+    "one": "Deployment #{id}",
+    "files": "Its files ({n})",
+    "noFiles": "It took no files (a rebuild or a rollback).",
+    "back": "All deployments",
+    "running": "Still running: the log refreshes by itself.",
+    "notFound": "No such deployment"
   },
   "transfer": {
     "title": "Download and upload",
@@ -385,7 +427,27 @@
     "layoutInUse": "Pages still use this layout",
     "layoutNotComing": "The new layout {layout} a page uses is {owner}'s, so it can't come along: take it over first",
     "layoutMissingAt": "Page {path} uses layout {layout}, which isn't in this release: push it too",
-    "importNoComponent": "No component “{path}”: upload or create it first"
+    "importNoComponent": "No component “{path}”: upload or create it first",
+    "codeSuperadmin": "Only a super administrator can take or replace a built-in template's code",
+    "codeFileName": "The file to upload is {file} (this one is {got})",
+    "codeProblems": "The code didn't pass the checks; nothing was replaced",
+    "codeMissing": "{ref} has no {file} yet: push the website's code first",
+    "codeChanged": "{file} on {ref} changed after the CMS took it in (a change of the website's code): discard this file, and change it again once the CMS has taken the new code in",
+    "codeConflict": "A built-in template's code conflicts; nothing was pushed",
+    "codeLint": "The code didn't pass the website's checks (eslint; the deployment's log has the details)"
+  },
+  "codeCheck": {
+    "empty": "The code is empty",
+    "tooLong": "The code is too long (at most {max} characters)",
+    "syntax": "Line {line}: syntax error: {text}",
+    "useClient": "The first line is \"use client\";",
+    "noDefault": "Export the type's view (a component) with export default",
+    "import": "Line {line}: {module} can't be imported (only the site's components, icons and words)",
+    "dynamicImport": "Line {line}: no import() of modules at run time",
+    "global": "Line {line}: {name} can't be used (no network, storage, other windows, code from text or Node)",
+    "property": "Line {line}: {name} can't be used (no cookies, HTML written as text or beacons)",
+    "element": "Line {line}: no {tag} element",
+    "attribute": "Line {line}: {name} can't be used (only the rich text and freeform HTML views need it)"
   },
   "check": {
     "notList": "{path}: should be a list",
@@ -491,7 +553,7 @@
     },
     "builtinName": "Built-in template (code)",
     "builtinState": "Code",
-    "builtinAbout": "In the website's code; not editable in the CMS",
+    "builtinAbout": "A file of the website's code; a super administrator can replace it",
     "history": "Version history",
     "noMatch": "No file matches.",
     "empty": "This folder is empty.",
@@ -608,10 +670,21 @@
     "previewTitle": "Template preview",
     "noPreview": "No block of this type is on a page yet: nothing to preview.",
     "builtinTitle": "“{type}”: built-in template",
-    "builtinBody": "The built-in template is in the website's code (src/cms/views.tsx) and can't be changed in the CMS. Every block that chooses no template uses it. For another look: create a template, then choose it on the block.",
+    "builtinBody": "The built-in template is a file of the website's code ({file}); every block placed without a style uses it. It has a state and versions like any file: a super administrator downloads it, changes it and uploads the same file to replace it, checks it in, pushes it to preview (the cms-preview branch) and then to production (GitHub's main). For another look without code: create a template and choose it on the page.",
     "newFromFields": "New template (from the type's fields)",
     "created": "Template created (yours)",
-    "create": "Create"
+    "create": "Create",
+    "code": "Code",
+    "codeDownload": "Download",
+    "codeUpload": "Upload to replace",
+    "codeUploaded": "Draft replaced: once checked in, the CMS preview is rebuilt (a minute or two)",
+    "codeHelp": "The file to upload is {file}. Nobody's file is taken as yours first; one that is someone else's or in the workflow can't be uploaded. The upload is checked: it imports only the site's components, icons and words, and uses no network, storage or cookies, no HTML written as text and no scripts; it is laid out as the website's code is. On the way to preview and production it passes the website's eslint and build too.",
+    "codeOnlySuper": "Only a super administrator can take and replace the code; you can view and download it.",
+    "codeNoFile": "The website's code (main) has no {file} yet: once the code has it, the CMS takes it in the next time this page opens.",
+    "standing": {
+      "changed": "This file changed in the website's code (main) and the CMS hasn't taken it in: while someone has it or it is in the workflow, it can't go to preview. Once it is discarded (or pushed), the CMS takes the new code in the next time this page opens.",
+      "behind": "The version the CMS pushed to GitHub isn't in this computer's website code yet (main is behind): previews use the CMS's version all the same."
+    }
   },
   "markup": {
     "unknownTag": "Line {line}: there is no element {tag}",

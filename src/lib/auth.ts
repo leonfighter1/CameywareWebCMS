@@ -19,6 +19,8 @@ const IDLE_MS = 12 * 3600_000;
 
 export const canEdit = (role: Role) => role === "editor" || role === "admin" || role === "superadmin";
 export const canPublish = (role: Role) => role === "admin" || role === "superadmin";
+/** Who may take and replace a built-in template's code (S6): it runs in every visitor's browser. */
+export const canCode = (role: Role) => role === "superadmin";
 
 /** A role's name (messages roles.*: 网站编辑, 管理员 …), a staff role this CMS doesn't know as it is. */
 export const roleName = (role: string) =>

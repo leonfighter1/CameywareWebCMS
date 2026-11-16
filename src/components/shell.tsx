@@ -23,6 +23,7 @@ import {
   IconExternalLink,
   IconFolders,
   IconGitBranch,
+  IconHistory,
   IconLogout,
   IconTransfer,
   IconUserCheck,
@@ -39,6 +40,7 @@ const NAV = [
   { href: "/", key: "explorer", icon: IconFolders },
   { href: "/mine/", key: "mine", icon: IconUserCheck },
   { href: "/workflow/", key: "workflow", icon: IconGitBranch },
+  { href: "/deployments/", key: "deployments", icon: IconHistory },
   { href: "/transfer/", key: "transfer", icon: IconTransfer },
 ] as const;
 

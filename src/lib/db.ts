@@ -186,6 +186,21 @@ export const MIGRATIONS: (string | ((tx: Transaction) => Promise<void>))[] = [
       alter table pages drop column spacing;
       alter table components drop column template;`);
   },
+  // S6 (the owner, 2026-11-16: a built-in template checked out, replaced from a local file, versioned and pushed through
+  // a cms-preview branch): each type's built-in template is a file (kind code, its id the type), its working copy the
+  // source of the website's src/cms/views/<type>.tsx; the website's main brings them in (seed.ts addCodeFiles).
+  `create table code_files (
+     id text primary key,
+     source text not null,
+     updated_at timestamptz not null default now(),
+     updated_by text not null default ''
+   );
+   alter table revisions drop constraint revisions_kind_check;
+   alter table revisions add constraint revisions_kind_check
+     check (kind in ('page', 'component', 'global', 'text', 'bundle', 'template', 'layout', 'code'));
+   alter table items drop constraint items_kind_check;
+   alter table items add constraint items_kind_check
+     check (kind in ('page', 'component', 'global', 'bundle', 'template', 'layout', 'code'));`,
 ];
 
 async function migrate(db: PGlite) {

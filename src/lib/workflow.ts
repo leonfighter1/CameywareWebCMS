@@ -12,7 +12,8 @@
  *
  *   放回 (files.ts) leaves a file nobody's with its changes (W3); 丢弃 puts production's version back.
  *   Versions (W4): every check-in is a version of its files; restoring one makes it your draft again, for the workflow.
- *   Production can go back to a release it showed before, as a whole (an emergency), its files' versions with it.
+ *   Production can go back to a release it showed before, as a whole (an emergency), its files' versions with it (its
+ *   content: a built-in template's code stays, S6).
  *
  * A step that builds a site moves its files once the site shows them: a failed build leaves them where they were.
  */
@@ -381,7 +382,9 @@ export async function rollbackProduction(db: Pg, release: number, by: string, ru
       const now = await revisionsById(pg, Object.values(manifest));
       for (const [key, f] of states) {
         const next = manifest[key] ?? null;
-        if (next === f.prod_revision_id) continue;
+        // Built-in templates stay as production has them (the rollback sends content alone): one goes back by its
+        // version restored and pushed again.
+        if (f.kind === "code" || next === f.prod_revision_id) continue;
         const w = work.get(key);
         const was = old.get(key);
         if (f.status === "available" && w && changeOf(w, was) === undefined) {

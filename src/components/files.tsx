@@ -5,7 +5,7 @@
  * what can be done to it now (拿取, 接手, 放回, 丢弃) and its versions. The editor's fields are open only while it is yours
  * (`Editable`).
  */
-import { Alert, Badge, Button, Drawer, Group, Stack, Text, Textarea } from "@mantine/core";
+import { Alert, Anchor, Badge, Button, Drawer, Group, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { IconHistory, IconLock } from "@tabler/icons-react";
@@ -16,6 +16,7 @@ import { type ReactNode, useState } from "react";
 import { checkInAction, discardAction, putBackAction, restoreVersionAction, takeAction } from "@/app/actions";
 import type { FileView, VersionView } from "@/lib/present";
 import { report } from "./result";
+import { NEW_TAB } from "@/components/links";
 
 /** A badge never cut short in a narrow table cell (Mantine ellipsises its label). */
 const WHOLE = { minWidth: "max-content" } as const;
@@ -28,6 +29,7 @@ const FOLDERS: Record<FileView["kind"], string> = {
   layout: "views/layouts",
   global: "content/common/globals",
   bundle: "content/common/bundles",
+  code: "views/styles",
 };
 
 /** Is [file] [me]'s to change? */
@@ -125,8 +127,21 @@ export function confirm(o: {
   });
 }
 
-/** A file's versions, newest first: production's and the workflow's marked; one restored as your draft. */
-function Versions({ file, me, versions }: { file: FileView; me: string; versions: VersionView[] }) {
+/**
+ * A file's versions, newest first: production's and the workflow's marked; one restored as your draft; with [download],
+ * each one's own file (a built-in template's code).
+ */
+function Versions({
+  file,
+  me,
+  versions,
+  download,
+}: {
+  file: FileView;
+  me: string;
+  versions: VersionView[];
+  download?: (version: number) => string;
+}) {
   const t = useTranslations("files");
   const router = useRouter();
   // ?versions=1 (the explorer's 版本记录) opens them at once.
@@ -193,6 +208,11 @@ function Versions({ file, me, versions }: { file: FileView; me: string; versions
                   {t("publishedIn", { list: v.published.map((p) => `#${p}`).join(", ") })}
                 </Text>
               )}
+              {download && (
+                <Anchor href={download(v.id)} size="xs" data-testid={`version-download-${v.id}`}>
+                  {t("downloadVersion")}
+                </Anchor>
+              )}
               {mine && !v.current && (
                 <Group justify="flex-end">
                   <Button
@@ -242,11 +262,14 @@ export function FileBar({
   me,
   versions,
   onChanged,
+  download,
 }: {
   file: FileView;
   me: string;
   versions: VersionView[];
   onChanged?: () => void;
+  /** Each version's own file to download (a built-in template's code). */
+  download?: (version: number) => string;
 }) {
   const t = useTranslations("files");
   const router = useRouter();
@@ -357,11 +380,11 @@ export function FileBar({
             </>
           )}
           {file.status === "in_workflow" && (
-            <Button size="xs" variant="default" component={Link} href="/workflow/">
+            <Button size="xs" variant="default" component={Link} {...NEW_TAB} href="/workflow/">
               {t("toWorkflow")}
             </Button>
           )}
-          <Versions file={file} me={me} versions={versions} />
+          <Versions file={file} me={me} versions={versions} download={download} />
         </Group>
       </Group>
     </Alert>

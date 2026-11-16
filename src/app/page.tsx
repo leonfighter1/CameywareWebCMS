@@ -75,6 +75,8 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
       name: "",
       href: `/templates/builtin/${type}`,
       builtin: "template",
+      // Its code, a file since S6 (once the website's main has it).
+      file: views[`code:${type}`],
       uses: placed.filter((b) => !b.style && typeOf.get(b.id) === type).length,
     });
   for (const t of templates)

@@ -18,8 +18,22 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 10. In Playwright, wait for a control inside a Mantine Modal or Drawer, never for the modal's own data-testid
 11. Carry a drag's payload in dataTransfer (kind in the type, data as JSON), never in a ref read by handlers a helper builds
 12. In a browser walk, let a save's refresh settle before the next drag; when a drop does nothing, log the dragstart's payload first
+13. Run vitest (and any Vite tool) from an upper-case drive path on Windows; 'reading config' at describe means two copies of vitest, not a broken test
+14. From PowerShell run npx next build and then npm start (or use Git Bash for npm start -- --build); check the log says 'building the CMS' before walking
 
 ## Log
+
+### 2026-11-16: npm start -- --build from Windows PowerShell started the old build
+- **Symptom:** After npm start -- --build the CMS served the previous version: a new page's controls never appeared and no 'building the CMS' line was printed
+- **Root cause:** Windows PowerShell 5.1 drops the -- before a native command's arguments, so npm took --build as its own flag and the start script never saw it
+- **Fix:** Built with npx next build, then npm start
+- **Rule:** From PowerShell run npx next build and then npm start (or use Git Bash for npm start -- --build); check the log says 'building the CMS' before walking (Rule 14)
+
+### 2026-11-16: vitest failed every file from a lower-case drive path
+- **Symptom:** Every test file, even a one-line one, failed with TypeError: Cannot read properties of undefined (reading 'config') at describe
+- **Root cause:** The shell's working directory was c:\CameywareWebCMS (lower-case drive letter): on Windows Vite then loads vitest twice, C:/ and c:/, and the test file's describe meets a runner that never started
+- **Fix:** Ran vitest from Set-Location 'C:\CameywareWebCMS' (upper-case drive): 48 tests passed
+- **Rule:** Run vitest (and any Vite tool) from an upper-case drive path on Windows; 'reading config' at describe means two copies of vitest, not a broken test (Rule 13)
 
 ### 2026-11-16: A browser walk's drag landed on what moved under the pointer
 - **Symptom:** dragging row 2's bar moved nothing: the drag's payload was row 1's component (index 0)

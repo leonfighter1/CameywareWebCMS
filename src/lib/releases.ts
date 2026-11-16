@@ -165,6 +165,45 @@ export async function deployments(db: Db, limit = 20): Promise<Deployment[]> {
   }));
 }
 
+/**
+ * How many deployments the filters pick (its site, state, step; [q]: words in its log, its files or who ran it, or its
+ * release's or its own number), and the [page] of [size] of them, newest first, without logs.
+ */
+export async function deploymentPage(
+  db: Db,
+  o: { page: number; size: number; env?: Env; status?: Deployment["status"]; action?: Action; q?: string },
+) {
+  // Each filter matches all when it is null.
+  const clause = `where ($1::text is null or env = $1) and ($2::text is null or status = $2)
+      and ($3::text is null or action = $3)
+      and ($4::text is null or author ilike $4 or log ilike $4 or items::text ilike $4
+           or release_id::text = $5 or id::text = $5)`;
+  const q = o.q?.trim().replace(/^#/, "");
+  const filters = [
+    o.env ?? null,
+    o.status ?? null,
+    o.action ?? null,
+    q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null,
+    q ?? null,
+  ];
+  const total = Number(
+    (await db.query<{ n: number }>(`select count(*)::int as n from deployments ${clause}`, filters)).rows[0]!
+      .n,
+  );
+  const { rows } = await db.query<Omit<Deployment, "log">>(
+    `select id, env, release_id, status, action, items, author, started_at, finished_at
+       from deployments ${clause} order by id desc limit $6 offset $7`,
+    [...filters, o.size, (Math.max(1, o.page) - 1) * o.size],
+  );
+  return { total, rows: rows.map((d) => ({ ...d, id: Number(d.id), release_id: Number(d.release_id) })) };
+}
+
+/** One deployment with its whole log. */
+export async function deploymentById(db: Db, id: number): Promise<Deployment | undefined> {
+  const d = (await db.query<Deployment>(`select * from deployments where id = $1`, [id])).rows[0];
+  return d && { ...d, id: Number(d.id), release_id: Number(d.release_id) };
+}
+
 /** The files a running deployment is moving: nobody moves them again until it ends. */
 export async function busyItems(db: Db): Promise<Set<string>> {
   const { rows } = await db.query<{ items: Item[] }>(

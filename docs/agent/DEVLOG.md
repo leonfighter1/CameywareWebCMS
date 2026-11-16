@@ -2,6 +2,25 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (e): v6.0.0, S6 (built-in templates as files, the deployment history, new tabs)
+
+- The owner's requests are in docs/tech-plan.md (S6). Kind `code` (migration 5, `code_files`): a type's built-in
+  template, its working copy the source of the website's `src/cms/views/<type>.tsx` (website v2.4.0 split it).
+  `addCodeFiles` (seed.ts) takes main's text in at start and on the template's page, for files nobody holds; a text
+  the CMS had before is main behind it. `saveCode` checks with the website's `checkViewCode` and lays out with its
+  Prettier settings; `uploadCodeAction` takes a free file first; `coder()` (超级管理员) for taking code.
+- `src/lib/code.ts`: the worktree `.cms-tree` inside the website (Turbopack's root set by `CMS_TURBOPACK_ROOT` so the
+  website's node_modules serve it; without it the build failed: next not found), one use at a time, left on
+  `cms-preview`; `codeChanges` (the files that differ from a ref; the code's own change refuses a workflow file);
+  `checkout` (branch commits or uncommitted); `lintCode`. deploy.ts builds preview on `cms-preview`, the CMS preview
+  on main with the workflow's, production with code through `codeToProduction` (lint, build, one commit, push);
+  rollback sends content alone. `git.ts` holds `run`, `git` (moved from deploy.ts) and `gitTexts`.
+- The owner, mid-way: 部署记录 with every deployment (search, filters, pages; a page per deployment with its log),
+  the 工作流 page with the current deployment alone, 所有版本 moved to the history's second tab; `NEW_TAB` on 16
+  links to editors, lists and logs.
+- 禄命秘解's `npm run all` builds the preview in `.cms-tree` when it is on `cms-preview`.
+- Mistake 13: vitest from a lower-case `c:\` path loads twice ("reading 'config'" at describe): run it from `C:\`.
+
 ## 2026-11-16 (d): v5.0.0, S5 (rows of components)
 
 - The owner's request (Bell's page editor: a Row in the palette, rows dragged, two components side by side in a row) is

@@ -2,19 +2,24 @@
  * The CMS's first content, and the texts the website's code adds later. The first start (an empty database) takes the
  * website's snapshot (content/site.json: pages, blocks, globals) and every UI text of its messages in the four languages,
  * checks them all in as one, and makes it release 1, shown on preview and production (it is what they show). Every
- * start after that adds the message keys the code has and the CMS hasn't (a new text in code), checked in as they are.
+ * start after that adds the message keys the code has and the CMS hasn't (a new text in code), checked in as they are,
+ * and the built-in templates' code as the website's main has it (addCodeFiles, S6).
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import { bundleOf } from "./bundles";
+import { TYPES } from "./catalog";
+import { knownTexts, standing } from "./code";
 import type { Db } from "./db";
 import { fileStates } from "./files";
+import { gitTexts } from "./git";
 import { placement, upgradePage } from "./pages";
 import { siteRepo } from "./paths";
 import { createRelease } from "./releases";
-import { canonical, listTexts, revisionsAt, workingStates } from "./store";
+import { canonical, listTexts, revisionsAt, workingStates, writeWorking } from "./store";
 import { publishDirect, recordSeed } from "./workflow";
+import { codePath } from "@/generated/code";
 import { GLOBAL_KEYS, type L10n, LOCALES, type SiteContent } from "@/generated/model";
 
 const json = (file: string) => JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
@@ -185,4 +190,42 @@ export async function addCodeTexts(db: PGlite, repo = siteRepo()): Promise<strin
       SYSTEM,
     );
   return added;
+}
+
+/**
+ * The built-in templates' code as the website's main has it (S6, code.ts): a type's file the CMS lacks, and a change the
+ * code made to one nobody holds as production has it, in as production's version at once. A text the CMS had before is
+ * main behind the CMS, left as it is; a file someone holds takes the code's change at a later start (its workflow refuses
+ * to go on meanwhile). Nothing when the website's main has no such files (before its v2.4.0).
+ */
+export async function addCodeFiles(db: PGlite, repo = siteRepo()): Promise<string[]> {
+  const ids = Object.keys(TYPES);
+  const main = await gitTexts("main", ids.map(codePath), repo).catch(() => new Map<string, undefined>());
+  const [states, prod, work, known] = await Promise.all([
+    fileStates(db),
+    revisionsAt(db, () => false),
+    workingStates(db),
+    knownTexts(db),
+  ]);
+  const taken = ids.filter((id) => {
+    const text = main.get(codePath(id));
+    const key = `code:${id}`;
+    const f = states.get(key);
+    const p = prod.get(key);
+    if (
+      text === undefined ||
+      standing(text, (p?.data as { source?: string })?.source, known.get(id)) !== "changed"
+    )
+      return false;
+    return !f || (f.status === "available" && canonical(p?.data) === canonical(work.get(key)?.state));
+  });
+  for (const id of taken) await writeWorking(db, "code", id, { source: main.get(codePath(id)) }, SYSTEM);
+  if (taken.length)
+    await publishDirect(
+      db,
+      taken.map((id) => ({ kind: "code" as const, id })),
+      "官网代码里的内置模板",
+      SYSTEM,
+    );
+  return taken;
 }

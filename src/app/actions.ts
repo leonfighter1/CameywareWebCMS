@@ -7,13 +7,15 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { closeSession, SESSION_COOKIE } from "@/lib/auth";
 import { startCmsSiteBuild } from "@/lib/deploy";
-import { type Item, putBack, take } from "@/lib/files";
+import { fileState, type Item, putBack, take } from "@/lib/files";
 import { toHant } from "@/lib/hant";
-import { attempt, database, editor, publisher } from "@/lib/server";
+import { addCodeFiles } from "@/lib/seed";
+import { attempt, coder, database, editor, publisher } from "@/lib/server";
 import { fieldsOf } from "@/lib/catalog";
 import { placement, starterLayout } from "@/lib/pages";
 import { insertPlacement, type Target } from "@/lib/rows";
 import {
+  codeProblems,
   createComponent,
   createLayout,
   createPage,
@@ -30,6 +32,7 @@ import {
   layoutProblems,
   type PageChange,
   type Placement,
+  saveCode,
   saveComponent,
   saveGlobal,
   saveLayout,
@@ -259,11 +262,33 @@ export async function saveTextAction(key: string, value: L10n) {
 
 // ---- files: take, put back, discard, versions ---------------------------------------------------------------
 
-/** 拿取, or with [over] 接手 (taking a file someone else has). */
+/** 拿取, or with [over] 接手 (taking a file someone else has); a built-in template's code, 超级管理员 alone. */
 export async function takeAction(items: Item[], over = false) {
   return attempt(async () => {
-    const user = await editor();
+    const user = items.some((i) => i.kind === "code") ? await coder() : await editor();
     await take(await database(), items, user.login, over);
+    done();
+  });
+}
+
+/**
+ * 上传 a built-in template's code (S6, 超级管理员; the owner: 「if file never taken by others, it should be automatically
+ * replaced」): the same file (<type>.tsx), checked first; taken when nobody has it (the code's latest taken in before),
+ * then laid out and saved as its working copy. Another's, or one in the workflow, is refused.
+ */
+export async function uploadCodeAction(id: string, fileName: string, source: string) {
+  return attempt(async () => {
+    const user = await coder();
+    if (fileName !== `${id}.tsx`)
+      throw new CmsError("errors.codeFileName", { file: `${id}.tsx`, got: fileName });
+    const problems = codeProblems(id, source);
+    if (problems.length) throw new CmsError("errors.codeProblems", undefined, problems);
+    const pg = await database();
+    if ((await fileState(pg, "code", id))?.status === "available") {
+      await addCodeFiles(pg);
+      await take(pg, [{ kind: "code", id }], user.login);
+    }
+    await saveCode(pg, id, source, user.login);
     done();
   });
 }
@@ -298,10 +323,14 @@ export async function restoreVersionAction(kind: Kind, id: string, revision: num
 
 // ---- the workflow's steps ---------------------------------------------------------------------------------
 
+/** The CMS's own preview built again when built-in templates came into the workflow or left it (it shows them). */
+const rebuildFor = (items: Item[]) => items.some((i) => i.kind === "code") && startCmsSiteBuild(true);
+
 export async function checkInAction(items: Item[], message: string) {
   return attempt(async () => {
     const user = await editor();
     const id = await checkIn(await database(), items, message, user.login);
+    rebuildFor(items);
     done();
     return id;
   });
@@ -312,6 +341,7 @@ export async function terminateAction(items: Item[]) {
   return attempt(async () => {
     await editor();
     await terminate(await database(), items);
+    rebuildFor(items);
     done();
   });
 }

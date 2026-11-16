@@ -82,4 +82,5 @@ export const fileHref = (kind: FileInfo["kind"], id: string) =>
     layout: `/layouts/${id}`,
     global: `/globals/${id}/`,
     bundle: `/bundles/${encodeURIComponent(id)}`,
+    code: `/templates/builtin/${id}`,
   })[kind];

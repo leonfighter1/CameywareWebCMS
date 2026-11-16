@@ -10,7 +10,6 @@ import {
   Group,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   TextInput,
   Title,
@@ -25,8 +24,10 @@ import {
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { FileTable, keyOf } from "@/components/file-table";
 import { confirm } from "@/components/files";
+import { NEW_TAB } from "@/components/links";
 import { report } from "@/components/result";
 import type { FileView } from "@/lib/present";
 import type { Action } from "@/lib/releases";
@@ -36,9 +37,9 @@ import {
   pushProductionAction,
   rebuildCmsSiteAction,
   rebuildPreviewAction,
-  rollbackProductionAction,
   terminateAction,
 } from "../actions";
+import { STATUS_COLOR } from "../deployments/list";
 
 type Env = { release?: number; at: string; by?: string };
 type Run = {
@@ -52,17 +53,6 @@ type Run = {
   at: string;
   log: string;
 };
-type Release = {
-  id: number;
-  author: string;
-  note: string;
-  at: string;
-  went: ("preview" | "production")[];
-  manifest: boolean;
-  differs?: number;
-};
-
-const STATUS_COLOR = { running: "yellow", done: "green", failed: "red" } as const;
 
 /** One step's column: its files to pick from, what can be done to the ones picked. */
 function Column({
@@ -127,8 +117,8 @@ export function Board({
   checkedIn,
   onPreview,
   envs,
-  releases,
   runs,
+  total,
   links,
 }: {
   me: string;
@@ -136,8 +126,10 @@ export function Board({
   checkedIn: FileView[];
   onPreview: FileView[];
   envs: { preview: Env; production: Env };
-  releases: Release[];
+  /** The deployments running now; none running: the last one. */
   runs: Run[];
+  /** Every deployment's count (the history page has them all). */
+  total: number;
   links: { cms: string; preview: string; production: string };
 }) {
   const t = useTranslations("workflow");
@@ -339,11 +331,16 @@ export function Board({
         </Grid.Col>
       </Grid>
 
-      <Card withBorder>
+      <Card withBorder data-testid="current-deployment">
         <Group justify="space-between" mb="sm">
-          <Title order={2} fz={18}>
-            {t("deployments")}
-          </Title>
+          <Group gap="sm" align="baseline">
+            <Title order={2} fz={18}>
+              {t("currentDeployment")}
+            </Title>
+            <Anchor component={Link} {...NEW_TAB} href="/deployments/" size="sm">
+              {t("allDeployments", { n: total })} <IconExternalLink size={12} />
+            </Anchor>
+          </Group>
           <Button
             size="xs"
             variant="default"
@@ -356,101 +353,39 @@ export function Board({
           </Button>
         </Group>
         <Stack gap="xs">
+          {!running && !!runs.length && (
+            <Text size="xs" c="dimmed">
+              {t("lastDeployment")}
+            </Text>
+          )}
           {runs.map((r) => (
-            <details key={r.id} open={r.status === "running"}>
-              <summary style={{ cursor: "pointer" }}>
-                <Group gap="xs" display="inline-flex">
-                  <Badge color={STATUS_COLOR[r.status]}>{t(`status.${r.status}`)}</Badge>
-                  <Text size="sm" span>
-                    {t("runLine", {
-                      env: t(r.env === "preview" ? "preview" : "production"),
-                      action: t(`actions.${r.action}`),
-                      id: r.release,
-                      n: r.items,
-                      by: r.by,
-                      at: r.at,
-                    })}
-                  </Text>
-                </Group>
-              </summary>
-              <Code block mt="xs" style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap" }}>
-                {r.log || t("noOutput")}
-              </Code>
-            </details>
+            <Stack key={r.id} gap={4}>
+              <Group gap="xs">
+                <Badge color={STATUS_COLOR[r.status]}>{t(`status.${r.status}`)}</Badge>
+                <Text size="sm" span>
+                  {t("runLine", {
+                    env: t(r.env === "preview" ? "preview" : "production"),
+                    action: t(`actions.${r.action}`),
+                    id: r.release,
+                    n: r.items,
+                    by: r.by,
+                    at: r.at,
+                  })}
+                </Text>
+                <Anchor component={Link} {...NEW_TAB} href={`/deployments/${r.id}`} size="sm">
+                  {t("log")}
+                </Anchor>
+              </Group>
+              {/* The progress of one running now; a finished one's log is on its own page. */}
+              {r.status === "running" && (
+                <Code block style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap" }}>
+                  {r.log || t("noOutput")}
+                </Code>
+              )}
+            </Stack>
           ))}
           {!runs.length && <Text c="dimmed">{t("noRuns")}</Text>}
         </Stack>
-      </Card>
-
-      <Card withBorder>
-        <Title order={2} fz={18}>
-          {t("releases")}
-        </Title>
-        <Text size="xs" c="dimmed" mb="sm">
-          {t("releasesHelp")}
-        </Text>
-        <Table.ScrollContainer minWidth={640}>
-          <Table verticalSpacing="xs">
-            <Table.Tbody>
-              {releases.map((r) => (
-                <Table.Tr key={r.id}>
-                  <Table.Td>
-                    <Text fw={600}>#{r.id}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {r.at} · {r.author}
-                      {r.note ? ` · ${r.note}` : ""}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={4}>
-                      {envs.preview.release === r.id && <Badge variant="light">{t("preview")}</Badge>}
-                      {envs.production.release === r.id && (
-                        <Badge color="green" variant="light">
-                          {t("production")}
-                        </Badge>
-                      )}
-                      {r.went.includes("production") && envs.production.release !== r.id && (
-                        <Badge color="gray" variant="outline">
-                          {t("wasProduction")}
-                        </Badge>
-                      )}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={4} justify="flex-end">
-                      {canPublish &&
-                        r.manifest &&
-                        r.went.includes("production") &&
-                        envs.production.release !== r.id && (
-                          <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            color="red"
-                            disabled={runningOn("production")}
-                            onClick={() =>
-                              confirm({
-                                title: t("rollbackTitle", { id: r.id }),
-                                body: t("rollbackBody", { n: r.differs ?? 0 }),
-                                label: t("rollback"),
-                                cancel: tf("cancel"),
-                                danger: true,
-                                run: async () =>
-                                  done(report(await rollbackProductionAction(r.id), t("rollbackStarted"))),
-                              })
-                            }
-                          >
-                            {t("rollback")}
-                          </Button>
-                        )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
       </Card>
     </Stack>
   );

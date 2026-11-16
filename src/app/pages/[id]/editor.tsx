@@ -70,6 +70,7 @@ import type { FileView, VersionView } from "@/lib/present";
 import { moveCard, moveRow, newRowKey, type Row, rowsIn, type Target } from "@/lib/rows";
 import type { L10n } from "@/generated/model";
 import { deletePageAction, placeBlockAction, savePageAction, setBlocksAction } from "../../actions";
+import { NEW_TAB } from "@/components/links";
 
 /** The style of a place that names no template: its type's own view. */
 const BUILTIN = "builtin";
@@ -457,6 +458,7 @@ export function PageEditor({
               <Tooltip label={t("editContent")}>
                 <ActionIcon
                   component={Link}
+                  {...NEW_TAB}
                   href={`/components/${p.id}?page=${page.id}`}
                   variant="subtle"
                   size="sm"
@@ -539,7 +541,7 @@ export function PageEditor({
                 {p.id}
               </Text>
             ) : (
-              <Anchor component={Link} href={`/components/${p.id}?page=${page.id}`} size="sm">
+              <Anchor component={Link} {...NEW_TAB} href={`/components/${p.id}?page=${page.id}`} size="sm">
                 {p.name || p.id}
               </Anchor>
             )}
@@ -551,6 +553,7 @@ export function PageEditor({
             </Text>
             <Anchor
               component={Link}
+              {...NEW_TAB}
               href={p.style ? `/templates/${p.style}` : `/templates/builtin/${p.type}`}
               size="sm"
             >

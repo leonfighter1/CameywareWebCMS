@@ -9,6 +9,7 @@ import { checkInModal, confirm } from "@/components/files";
 import { report } from "@/components/result";
 import type { FileView } from "@/lib/present";
 import { discardAction, putBackAction } from "../actions";
+import { NEW_TAB } from "@/components/links";
 
 export function Mine({ me, held, inWorkflow }: { me: string; held: FileView[]; inWorkflow: FileView[] }) {
   const t = useTranslations("mine");
@@ -89,7 +90,7 @@ export function Mine({ me, held, inWorkflow }: { me: string; held: FileView[]; i
           <Title order={2} fz={18}>
             {t("inWorkflow", { n: inWorkflow.length })}
           </Title>
-          <Button size="xs" variant="default" component={Link} href="/workflow/">
+          <Button size="xs" variant="default" component={Link} {...NEW_TAB} href="/workflow/">
             {tf("toWorkflow")}
           </Button>
         </Group>

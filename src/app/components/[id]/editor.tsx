@@ -12,6 +12,7 @@ import { report } from "@/components/result";
 import type { Field } from "@/lib/catalog";
 import type { FileView, VersionView } from "@/lib/present";
 import { deleteComponentAction, saveComponentAction } from "../../actions";
+import { NEW_TAB } from "@/components/links";
 
 /**
  * A block's editor: its content alone (its name and fields); where it stands, in which zone and style, is each page's
@@ -154,7 +155,7 @@ export function ComponentEditor({
               <Stack gap={4}>
                 {pages.map((p, i) => (
                   <Group key={`${p.id}:${i}`} gap="xs">
-                    <Anchor component={Link} href={`/pages/${p.id}`} ff="monospace" size="sm">
+                    <Anchor component={Link} {...NEW_TAB} href={`/pages/${p.id}`} ff="monospace" size="sm">
                       {p.path}
                     </Anchor>
                     <Text size="xs" c="dimmed">
