@@ -740,7 +740,6 @@
     "templateName": "模板名",
     "startFrom": "从哪里开始",
     "fromStarter": "按这个类型的字段生成",
-    "fromCopy": "复制「{name}」",
     "newHelp": {
       "page": "新页面先是停用的，在你名下：加好区块、检查好，再启用并加入工作流。复制已有页面时，它的区块会复制成新的区块文件，两个页面以后各改各的。页面名按标题自动生成。",
       "block": "新区块在你名下：填好内容，再在页面的编辑里把它加到页面上。",
@@ -784,7 +783,17 @@
     "uses": "{n} 个位置用它",
     "laidOut": "{n} 个页面用它",
     "builtinLayoutAbout": "写在官网代码里，CMS 里不能改",
-    "blankPage": "空白页面"
+    "blankPage": "空白页面",
+    "copyExisting": "复制已有的…（{n} 个可选）",
+    "copying": "复制：{name}",
+    "notPicked": "还没选要复制的",
+    "pickCopy": "选择…",
+    "pickAgain": "换一个",
+    "pickTitle": {
+      "page": "选择要复制的页面",
+      "template": "选择要复制的样式",
+      "layout": "选择要复制的布局"
+    }
   },
   "template": {
     "path": "视图/组件样式",
@@ -956,5 +965,16 @@
     "body": "它可能刚被丢弃（从没发布过的文件丢弃后就没有了），或者被删除了。回到内容树找找，或者看看在你名下的文件。",
     "explorer": "回到内容树",
     "mine": "我的文件"
+  },
+  "picker": {
+    "search": "按名字或地址查找",
+    "name": "名称",
+    "state": "状态",
+    "at": "修改时间",
+    "by": "修改人",
+    "none": "没有找到。",
+    "count": "{n} 个",
+    "pick": "选这个",
+    "cancel": "取消"
   }
 }

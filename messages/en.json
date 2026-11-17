@@ -740,7 +740,6 @@
     "templateName": "Template name",
     "startFrom": "Start from",
     "fromStarter": "The type's fields",
-    "fromCopy": "A copy of “{name}”",
     "newHelp": {
       "page": "A new page starts inactive and yours: add its blocks, check it, then make it active and put it into the workflow. A page copied from another gets copies of its blocks as new block files, so the two change apart. Its name is made from its title.",
       "block": "A new block is yours: fill it in, then add it to a page from the page's editor.",
@@ -784,7 +783,17 @@
     "uses": "{n, plural, one {used in # place} other {used in # places}}",
     "laidOut": "{n, plural, one {# page uses it} other {# pages use it}}",
     "builtinLayoutAbout": "In the website's code; not editable in the CMS",
-    "blankPage": "A blank page"
+    "blankPage": "A blank page",
+    "copyExisting": "A copy of one already made… ({n} to choose from)",
+    "copying": "Copying {name}",
+    "notPicked": "Nothing picked to copy yet",
+    "pickCopy": "Choose…",
+    "pickAgain": "Choose another",
+    "pickTitle": {
+      "page": "Pick a page to copy",
+      "template": "Pick a style to copy",
+      "layout": "Pick a layout to copy"
+    }
   },
   "template": {
     "path": "Views/Component styles",
@@ -956,5 +965,16 @@
     "body": "It may just have been discarded (a file never published is gone once discarded), or deleted. Look for it in the content tree, or see the files you hold.",
     "explorer": "Back to the content tree",
     "mine": "My files"
+  },
+  "picker": {
+    "search": "Find by name or address",
+    "name": "Name",
+    "state": "State",
+    "at": "Modified",
+    "by": "Modified by",
+    "none": "Nothing found.",
+    "count": "{n, plural, one {# file} other {# files}}",
+    "pick": "Pick this one",
+    "cancel": "Cancel"
   }
 }

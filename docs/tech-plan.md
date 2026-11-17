@@ -379,6 +379,19 @@ changed; a Chinese name is refused on create and save; an upload of before keeps
 | WP52 | `names.ts` (isFileName, asFileName, uniqueName, mustBeFileName, nameFiles); pageNameOf in English; migration 9 |
 | WP53 | Refusals in store.ts, uploads' names kept (transfer.ts), the rule beside every name field                      |
 
+## v9.2.0 (medium, after v9.1.0): the file to copy picked in a lightbox
+
+**The owner (2026-11-16)**, with 新建页面's list of pages to copy: 「这个可以再改一改， 万一有很多page呢，难道一直要往下翻吗？
+应该有一个专门的lightbox可以查找所有的相关的content 去copy.」
+
+**Built as:** `FilePicker` (components/file-picker.tsx): a search by name or address, ten a page, a click to choose and
+a double click to take; 新建页面 / 样式 / 布局 offer their few starts and 复制已有的…, which opens it; the dialog under it
+takes no Esc meanwhile (rule 15).
+
+| WP   | What                                                                             |
+| ---- | -------------------------------------------------------------------------------- |
+| WP54 | `FilePicker`; the new-file dialog's starts and its pick (pages, styles, layouts) |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -436,6 +449,7 @@ changed; a Chinese name is refused on create and save; an upload of before keeps
 | WP51 | done                                         | v9.0.0                 |
 | WP52 | done                                         | v9.1.0                 |
 | WP53 | done                                         | v9.1.0                 |
+| WP54 | done                                         | v9.2.0                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

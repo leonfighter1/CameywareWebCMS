@@ -46,6 +46,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { confirm, isMine, jobModal, StateBadges } from "@/components/files";
+import { FilePicker } from "@/components/file-picker";
 import { PageTransfer } from "@/components/page-transfer";
 import { report } from "@/components/result";
 import type { FileView } from "@/lib/present";
@@ -495,7 +496,7 @@ function FileList({
   return (
     <Stack gap="sm">
       <Group gap="xs" wrap="wrap" data-testid="toolbar">
-        <NewFile at={at} type={type} all={all} layouts={layouts} />
+        <NewFile me={me} at={at} type={type} all={all} layouts={layouts} />
         <Button
           size="xs"
           disabled={!free.length}
@@ -773,11 +774,13 @@ function About({ e, t }: { e: Entry; t: T }) {
 
 /** 新建 for the folder: a page, a block of its type, a template of its type, a page layout. */
 function NewFile({
+  me,
   at,
   type,
   all,
   layouts,
 }: {
+  me: string;
   at: string;
   type?: string;
   all: Entry[];
@@ -800,22 +803,36 @@ function NewFile({
             ? "layout"
             : undefined;
   const [from, setFrom] = useState(what === "layout" ? "standard" : "starter");
+  /** The file to copy, picked in the lightbox (S10; the owner: 「应该有一个专门的lightbox可以查找所有的相关的content 去copy」). */
+  const [copyFrom, setCopyFrom] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!what) return null;
   const copies = all.filter((e) => e.folder === at && !e.builtin && e.file);
+  const copying = from === "copy";
+  const picked = copies.find((c) => c.file!.id === copyFrom);
+  /** Where a new file starts: a blank one, the type's starter or a built-in layout, or a copy of one picked. */
+  const starts =
+    what === "layout"
+      ? layouts.map((l) => ({ value: l.name, label: t("fromBuiltinLayout", { name: l.label }) }))
+      : what === "page"
+        ? [{ value: "starter", label: t("blankPage") }]
+        : what === "template"
+          ? [{ value: "starter", label: t("fromStarter") }]
+          : [];
   const create = async () => {
     setBusy(true);
     if (what === "page") {
-      const r = await createPageAction(path, { zh: name }, from === "starter" ? undefined : from);
+      const r = await createPageAction(path, { zh: name }, copying ? copyFrom! : undefined);
       if (report(r, t("createdPage"))) router.push(`/pages/${r.value}`);
     } else if (what === "block") {
       const r = await createComponentAction(type!, name);
       if (report(r, t("createdBlock"))) router.push(`/components/${r.value}`);
     } else if (what === "layout") {
-      const r = await createLayoutAction(name, from);
+      const r = await createLayoutAction(name, copying ? copyFrom! : from);
       if (report(r, t("createdLayout"))) router.push(`/layouts/${r.value}`);
     } else {
-      const r = await createTemplateAction(type!, name, from === "starter" ? undefined : from);
+      const r = await createTemplateAction(type!, name, copying ? copyFrom! : undefined);
       if (report(r, t("createdTemplate"))) router.push(`/templates/${r.value}`);
     }
     setBusy(false);
@@ -832,7 +849,8 @@ function NewFile({
       >
         {t(`new.${what}`)}
       </Button>
-      <Modal opened={opened} onClose={close} title={t(`new.${what}`)}>
+      {/* Esc closes the picker alone while it is open (Mantine closes every open dialog on Esc: rule 15). */}
+      <Modal opened={opened} onClose={close} title={t(`new.${what}`)} closeOnEscape={!picking}>
         <Stack>
           {what === "page" && (
             <TextInput
@@ -858,48 +876,58 @@ function NewFile({
             onChange={(e) => setName(e.currentTarget.value)}
             data-autofocus={what !== "page" ? true : undefined}
           />
-          {what === "layout" && (
-            <Radio.Group label={t("startFrom")} value={from} onChange={setFrom}>
+          {(starts.length > 1 || !!copies.length) && (
+            <Radio.Group
+              label={t("startFrom")}
+              value={from}
+              onChange={(v) => {
+                setFrom(v);
+                if (v === "copy" && !copyFrom) setPicking(true);
+              }}
+            >
               <Stack gap={6} mt={4}>
-                {layouts.map((l) => (
-                  <Radio key={l.name} value={l.name} label={t("fromBuiltinLayout", { name: l.label })} />
+                {starts.map((o) => (
+                  <Radio key={o.value} value={o.value} label={o.label} />
                 ))}
-                {copies.map((c) => (
-                  <Radio key={c.key} value={c.file!.id} label={t("fromCopy", { name: c.name })} />
-                ))}
-              </Stack>
-            </Radio.Group>
-          )}
-          {what === "page" && !!copies.length && (
-            <Radio.Group label={t("startFrom")} value={from} onChange={setFrom}>
-              <Stack gap={6} mt={4} mah={220} style={{ overflow: "auto" }}>
-                <Radio value="starter" label={t("blankPage")} />
-                {copies.map((c) => (
+                {!!copies.length && (
                   <Radio
-                    key={c.key}
-                    value={c.file!.id}
-                    label={t("fromCopy", { name: `${c.name} (${c.title ?? ""})` })}
-                    data-testid={`copy-${c.file!.id}`}
+                    value="copy"
+                    label={t("copyExisting", { n: copies.length })}
+                    data-testid="start-copy"
                   />
-                ))}
+                )}
               </Stack>
             </Radio.Group>
           )}
-          {what === "template" && (
-            <Radio.Group label={t("startFrom")} value={from} onChange={setFrom}>
-              <Stack gap={6} mt={4}>
-                <Radio value="starter" label={t("fromStarter")} />
-                {copies.map((c) => (
-                  <Radio key={c.key} value={c.file!.id} label={t("fromCopy", { name: c.name })} />
-                ))}
-              </Stack>
-            </Radio.Group>
+          {copying && (
+            <Group gap="sm" wrap="nowrap" data-testid="copy-picked">
+              <Text size="sm" style={{ flex: 1 }}>
+                {picked
+                  ? t("copying", { name: picked.title ? `${picked.name} (${picked.title})` : picked.name })
+                  : t("notPicked")}
+              </Text>
+              <Button size="xs" variant="light" onClick={() => setPicking(true)} data-testid="pick-copy">
+                {picked ? t("pickAgain") : t("pickCopy")}
+              </Button>
+            </Group>
           )}
+          <FilePicker
+            opened={picking}
+            title={t(`pickTitle.${what === "block" ? "page" : what}`)}
+            items={copies.map((c) => ({ id: c.file!.id, name: c.name, sub: c.title, file: c.file }))}
+            value={copyFrom}
+            me={me}
+            onPick={(id) => {
+              setCopyFrom(id);
+              setPicking(false);
+            }}
+            close={() => setPicking(false)}
+          />
           <Text size="xs" c="dimmed">
             {t(`newHelp.${what}`)}
           </Text>
           <Group justify="flex-end">
-            <Button onClick={create} loading={busy}>
+            <Button onClick={create} loading={busy} disabled={copying && !copyFrom}>
               {t("create")}
             </Button>
           </Group>

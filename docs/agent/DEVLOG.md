@@ -2,6 +2,11 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (l): v9.2.0 (the file to copy picked in a lightbox)
+
+- The owner: 新建页面's copy list doesn't scale. `FilePicker` (search, ten a page, click / double click); the new-file
+  dialog shows its starts and 复制已有的…, the pick under it with 换一个; closeOnEscape off while the picker is open.
+
 ## 2026-11-16 (k): v9.1.0 (files named in English)
 
 - The owner: page names and files without Chinese, only the content. `names.ts` holds the rule and `nameFiles`, which
