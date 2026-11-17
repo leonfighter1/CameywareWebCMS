@@ -449,6 +449,18 @@ built file stayed (and LivePage shows the page as built when the live content la
 | ---- | ------------------------------------------------------------------- |
 | WP59 | `liveFits` wants the same pages both ways; 重建预览站 always builds |
 
+## v9.4.2 (small, after v9.4.1): the CMS preview's rebuild beside its site, its state shown
+
+**The owner (2026-11-17)**: 「这两个预览重建是不是都能trigger?试了一下 下面的那个好像不行啊」 (重建预览站 at the top, 重建
+CMS 预览站 in 当前部署).
+
+**The cause:** 重建 CMS 预览站 rebuilds cms-preview, not preview, in the background with no deployment; it sat among
+preview's deployments and showed only a toast, so a finished build looked like nothing.
+
+| WP   | What                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------- |
+| WP60 | the button in the CMS 预览 card; `CmsSiteBadge` (rebuilding / failed / ready + time) on 工作流 and 总览 |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -512,6 +524,7 @@ built file stayed (and LivePage shows the page as built when the live content la
 | WP57 | done                                         | v9.3.1                 |
 | WP58 | done                                         | v9.4.0                 |
 | WP59 | done                                         | v9.4.1                 |
+| WP60 | done                                         | v9.4.2                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

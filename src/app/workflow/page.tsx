@@ -1,6 +1,7 @@
 import { Frame } from "@/components/frame";
 import { keyOf } from "@/lib/files";
 import { canPublish } from "@/lib/auth";
+import { cmsSiteState } from "@/lib/deploy";
 import { previewBase, productionBase } from "@/lib/hosts";
 import { getJob, jobDeployments, jobEvents, jobItems, jobPage, type Step, STEPS } from "@/lib/jobs";
 import { ADDRESSES } from "@/lib/paths";
@@ -53,6 +54,7 @@ export default async function WorkflowPage({
   const byKey = new Map(all.map((f) => [keyOf(f), f]));
   const running = recent.filter((d) => d.status === "running");
   const lang2 = lang === "en" ? "en" : "zh";
+  const site = cmsSiteState();
   return (
     <Frame>
       <JobManager
@@ -91,6 +93,7 @@ export default async function WorkflowPage({
           log: d.status === "running" ? readLog(d.log, lang).slice(-12000) : "",
         }))}
         total={total}
+        cmsSite={{ ...site, at: when(site.at, lang) }}
         links={{
           cms: `${previewBase(await host())}/${lang2}/`,
           preview: `${ADDRESSES.company.preview}/${lang2}/`,

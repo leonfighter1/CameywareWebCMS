@@ -44,6 +44,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { type CmsSite, CmsSiteBadge } from "@/components/cms-site";
 import { FileTable, keyOf } from "@/components/file-table";
 import { confirm, jobModal } from "@/components/files";
 import { JobTable, StepBadge } from "@/components/job-table";
@@ -234,6 +235,7 @@ export function JobManager({
   envs,
   runs,
   total,
+  cmsSite,
   links,
 }: {
   me: string;
@@ -249,6 +251,7 @@ export function JobManager({
   runs: Run[];
   /** Every deployment's count (the history page has them all). */
   total: number;
+  cmsSite: CmsSite;
   links: { cms: string; preview: string; production: string };
 }) {
   const t = useTranslations("jobs");
@@ -562,14 +565,30 @@ export function JobManager({
       </div>
 
       <SimpleGrid cols={{ base: 1, md: 3 }}>
-        <Card withBorder>
-          <Text fw={600}>{tw("cmsPreview")}</Text>
+        <Card withBorder data-testid="cms-site">
+          <Group gap="xs">
+            <Text fw={600}>{tw("cmsPreview")}</Text>
+            <CmsSiteBadge site={cmsSite} />
+          </Group>
           <Text size="sm" c="dimmed">
             {tw("cmsPreviewHelp")}
           </Text>
-          <Anchor href={links.cms} target="_blank" size="sm">
-            {tw("open")} <IconExternalLink size={12} />
-          </Anchor>
+          <Group gap="sm">
+            <Anchor href={links.cms} target="_blank" size="sm">
+              {tw("open")} <IconExternalLink size={12} />
+            </Anchor>
+            {/* Its own site, not preview: only after the website's code changed (the owner took it for preview's). */}
+            <Anchor
+              component="button"
+              size="sm"
+              disabled={cmsSite.building}
+              onClick={async () =>
+                report(await rebuildCmsSiteAction(), tw("cmsRebuildStarted")) && router.refresh()
+              }
+            >
+              <IconRefresh size={12} /> {tw("rebuildCms")}
+            </Anchor>
+          </Group>
         </Card>
         <Card withBorder>
           <Text fw={600}>{tw("preview")}</Text>
@@ -898,25 +917,13 @@ export function JobManager({
       )}
 
       <Card withBorder data-testid="current-deployment">
-        <Group justify="space-between" mb="sm">
-          <Group gap="sm" align="baseline">
-            <Title order={2} fz={18}>
-              {tw("currentDeployment")}
-            </Title>
-            <Anchor component={Link} {...NEW_TAB} href="/deployments/" size="sm">
-              {tw("allDeployments", { n: total })} <IconExternalLink size={12} />
-            </Anchor>
-          </Group>
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconRefresh size={14} />}
-            onClick={async () =>
-              report(await rebuildCmsSiteAction(), tw("cmsRebuildStarted")) && router.refresh()
-            }
-          >
-            {tw("rebuildCms")}
-          </Button>
+        <Group gap="sm" align="baseline" mb="sm">
+          <Title order={2} fz={18}>
+            {tw("currentDeployment")}
+          </Title>
+          <Anchor component={Link} {...NEW_TAB} href="/deployments/" size="sm">
+            {tw("allDeployments", { n: total })} <IconExternalLink size={12} />
+          </Anchor>
         </Group>
         <Stack gap="xs">
           {!running && !!runs.length && (

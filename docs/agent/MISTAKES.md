@@ -30,8 +30,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 22. On Windows, never pass /dev/stdin to node as a path: write the text with the Write tool and pass the file's path
 23. When a step will leave something out of what the user expects to see (a 停用 page, a file not coming), say so where the step is taken, with what to do
 24. A shortcut that skips a build checks what the build would remove as well as what it would add; an explicit rebuild never takes the shortcut
+25. A button that acts on a site sits with that site and shows what it is doing and when it last did it; a background job with no deployment row reports its state and its end on the page.
 
 ## Log
+
+### 2026-11-17: A rebuild of one site sat beside another site's deployments and said nothing
+- **Symptom:** The owner pressed 重建 CMS 预览站 in the 当前部署 card, saw nothing change and took it for broken; it had built cms-preview in a minute.
+- **Root cause:** The button rebuilt the CMS's own preview (no deployment, no log on the page), placed in the card of preview's deployments; it only showed a toast.
+- **Fix:** Moved into the CMS 预览 card with CmsSiteBadge (rebuilding, failed with why, ready with the time built; the page asks again while it builds and says when it ends); the help says it never changes preview.
+- **Rule:** A button that acts on a site sits with that site and shows what it is doing and when it last did it; a background job with no deployment row reports its state and its end on the page. (Rule 25)
 
 ### 2026-11-16: A page discarded stayed on preview: the live path kept its built file
 - **Symptom:** The owner discarded /test/ (built into preview at 23:10); preview.cameyware.com/zh/test/ still served the page; 重建预览站 had finished in 0 s

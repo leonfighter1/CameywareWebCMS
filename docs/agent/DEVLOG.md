@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-17 (a): v9.4.2 (the CMS preview's rebuild with its own site, its state shown)
+
+- The owner pressed both rebuilds and took 当前部署's 重建 CMS 预览站 for broken: it had built cms-preview (09:01, a
+  minute) but showed only a toast, sitting among preview's deployments. 重建预览站 (09:21) built preview and /test/ went.
+- `cmsSiteState` (building, failed since the CMS started, the served build's time) → `CmsSiteBadge` in
+  src/components/cms-site.tsx, on 工作流's CMS 预览 card (the button moved there) and 总览's 网站 card; it polls while
+  building and says the end. Walked on a copy with `CMS_SITE_TREE` at a folder git refuses (the rebuild fails at once,
+  the real checkout untouched; SITE_REPO must stay real: the CMS reads the website's messages). Mistake 25.
+
 ## 2026-11-16 (p): v9.4.1 (a page gone from preview no longer stays)
 
 - The owner discarded /test/ and it still opened on preview: the 23:10 build had made out/zh/test/; the later releases

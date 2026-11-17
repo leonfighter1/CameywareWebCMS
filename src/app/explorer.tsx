@@ -45,6 +45,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { type CmsSite, CmsSiteBadge } from "@/components/cms-site";
 import { confirm, isMine, jobModal, StateBadges, takeFiles } from "@/components/files";
 import { FilePicker } from "@/components/file-picker";
 import { PageTransfer } from "@/components/page-transfer";
@@ -153,7 +154,7 @@ export function Explorer({
   layouts,
   preview,
   releases,
-  building,
+  cmsSite,
 }: {
   me: string;
   at: string;
@@ -163,7 +164,7 @@ export function Explorer({
   layouts: { name: string; label: string }[];
   preview: string;
   releases: { preview?: number; production?: number };
-  building: boolean;
+  cmsSite: CmsSite;
 }) {
   const t = useTranslations("explorer");
   const router = useRouter();
@@ -256,7 +257,7 @@ export function Explorer({
       </Card>
       <Box w="100%" style={{ flex: 1, minWidth: 0 }}>
         {here === "" ? (
-          <Dashboard me={me} entries={files} releases={releases} building={building} preview={preview} />
+          <Dashboard me={me} entries={files} releases={releases} cmsSite={cmsSite} preview={preview} />
         ) : (
           <Folder
             key={here}
@@ -942,13 +943,13 @@ function Dashboard({
   me,
   entries,
   releases,
-  building,
+  cmsSite,
   preview,
 }: {
   me: string;
   entries: Entry[];
   releases: { preview?: number; production?: number };
-  building: boolean;
+  cmsSite: CmsSite;
   preview: string;
 }) {
   const t = useTranslations("explorer");
@@ -1112,9 +1113,7 @@ function Dashboard({
               <Text size="sm" c="dimmed">
                 {t("cmsSite")}
               </Text>
-              <Badge size="sm" color={building ? "yellow" : "green"}>
-                {building ? t("rebuilding") : t("ready")}
-              </Badge>
+              <CmsSiteBadge site={cmsSite} />
             </Group>
             <Group gap="xs" mt={8}>
               <Button component="a" href={preview} target="_blank" variant="default" size="xs">
@@ -1124,7 +1123,7 @@ function Dashboard({
                 variant="light"
                 size="xs"
                 leftSection={<IconRefresh size={14} />}
-                disabled={building}
+                disabled={cmsSite.building}
                 onClick={async () => {
                   if (report(await rebuildCmsSiteAction(), t("rebuildStarted"))) router.refresh();
                 }}

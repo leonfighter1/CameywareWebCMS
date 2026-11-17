@@ -20,7 +20,16 @@
  *               built-in template comes into the workflow or leaves it, never after content (that comes live).
  */
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -274,7 +283,11 @@ export async function buildCmsSite(log: (s: string) => void = (s) => process.std
   log(`\nCMS preview built: ${target}\n`);
 }
 
-const building = globalThis as unknown as { cmsSiteBuild?: Promise<void>; again?: boolean };
+const building = globalThis as unknown as {
+  cmsSiteBuild?: Promise<void>;
+  again?: boolean;
+  cmsSiteFailed?: string;
+};
 
 /**
  * The CMS's preview built in the background, once at a time: false when a build is running already. With [queue], one
@@ -285,8 +298,12 @@ export function startCmsSiteBuild(queue = false): boolean {
     if (queue) building.again = true;
     return false;
   }
+  building.cmsSiteFailed = undefined;
   building.cmsSiteBuild = buildCmsSite()
-    .catch((e) => console.error(e))
+    .catch((e) => {
+      building.cmsSiteFailed = e instanceof Error ? e.message : String(e);
+      console.error(e);
+    })
     .finally(() => {
       building.cmsSiteBuild = undefined;
       if (building.again) {
@@ -297,7 +314,17 @@ export function startCmsSiteBuild(queue = false): boolean {
   return true;
 }
 
-export const cmsSiteBuilding = () => !!building.cmsSiteBuild;
+/**
+ * The CMS's preview as its pages show it (the owner, 2026-11-17: its rebuild seemed to do nothing): building now, when
+ * the one it serves was built, and why the last build failed (since the CMS started).
+ */
+export function cmsSiteState() {
+  let at: Date | undefined;
+  try {
+    at = statSync(join(deployDir("cms", "site"), "index.html")).mtime;
+  } catch {}
+  return { building: !!building.cmsSiteBuild, failed: building.cmsSiteFailed, at };
+}
 
 /**
  * Sends [release] to [env], in the background: the deployment's id at once, its log and its end in the database. It

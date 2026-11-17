@@ -1,10 +1,10 @@
 import { Frame } from "@/components/frame";
 import { bundleOf } from "@/lib/bundles";
 import { TYPES } from "@/lib/catalog";
-import { cmsSiteBuilding } from "@/lib/deploy";
+import { cmsSiteState } from "@/lib/deploy";
 import { previewBase } from "@/lib/hosts";
 import { labelIn } from "@/lib/labels";
-import { fileHref, fileViews } from "@/lib/present";
+import { fileHref, fileViews, when } from "@/lib/present";
 import { environments } from "@/lib/releases";
 import { database, host, language, requireUser } from "@/lib/server";
 import { layoutLabel, listComponents, listLayouts, listPages, listTemplates, listTexts } from "@/lib/store";
@@ -130,6 +130,7 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
         f.id,
       );
   }
+  const site = cmsSiteState();
   return (
     <Frame>
       <Explorer
@@ -143,7 +144,7 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
         }))}
         preview={previewBase(await host())}
         releases={{ preview: envs.preview.release, production: envs.production.release }}
-        building={cmsSiteBuilding()}
+        cmsSite={{ ...site, at: when(site.at, lang) }}
       />
     </Frame>
   );
