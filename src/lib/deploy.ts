@@ -124,9 +124,16 @@ async function previewKey(code: CodeFile[]) {
 const pathsOf = (content: { pages: { path: string; status?: string }[] }) =>
   content.pages.filter((p) => p.status !== "inactive").map((p) => p.path);
 
-/** Whether preview's build ([built]) shows content of code [key] with [paths] as it is: same code, no page it lacks. */
+/**
+ * Whether preview's build ([built]) shows content of code [key] with [paths] as it is: the same code and the same pages.
+ * A page it lacks needs a file; a page the content no longer has (removed, discarded, 停用) still has one, showing it as
+ * it was built (the owner, 2026-11-16: /test/ discarded, still on preview), so either way it is built again.
+ */
 export const liveFits = (built: LiveBuild | undefined, key: string, paths: string[]) =>
-  !!built && built.key === key && paths.every((p) => built.paths.includes(p));
+  !!built &&
+  built.key === key &&
+  new Set(paths).size === new Set(built.paths).size &&
+  paths.every((p) => built.paths.includes(p));
 
 function readBuilt(out: string): LiveBuild | undefined {
   try {
@@ -142,7 +149,8 @@ function writeWhole(file: string, text: string) {
   renameSync(`${file}.tmp`, file);
 }
 
-async function toPreview(pg: Pg, release: number, by: string, log: (s: string) => void) {
+/** Preview to [release]: live when the build fits it (liveFits), else built; with [build] (重建预览站) built always. */
+async function toPreview(pg: Pg, release: number, by: string, log: (s: string) => void, build = false) {
   const content = await contentFor(pg, release, "preview", by);
   const text = JSON.stringify(content, null, 2) + "\n";
   const file = deployDir("preview", "content.json");
@@ -152,8 +160,8 @@ async function toPreview(pg: Pg, release: number, by: string, log: (s: string) =
   const out = join(siteRepo(), "out");
   const key = await previewKey(code);
   const paths = pathsOf(content);
-  // The same code and no new page: the live pages take the new content, no build.
-  if (liveFits(readBuilt(out), key, paths)) {
+  // The same code and the same pages: the live pages take the new content, no build.
+  if (!build && liveFits(readBuilt(out), key, paths)) {
     writeWhole(join(out, LIVE_CONTENT), text);
     log(logLine("deploy.previewLive"));
     return;
@@ -323,7 +331,7 @@ export async function deploy(
   const work = runner
     ? runner(log)
     : env === "preview"
-      ? toPreview(pg, release, by, log)
+      ? toPreview(pg, release, by, log, o.action === "rebuild")
       : toProduction(pg, release, by, log, o.action !== "rollback");
   const failed = async (e: unknown) => {
     await flushing;

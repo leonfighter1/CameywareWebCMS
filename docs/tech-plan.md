@@ -437,6 +437,18 @@ Copy From Existing).
 | ---- | --------------------------------------------------------------- |
 | WP58 | `copyPage` with shared blocks; the new-page help; the copy test |
 
+## v9.4.1 (small, after v9.4.0): a page gone from preview no longer stays
+
+**The owner (2026-11-16)**: 「I have discarded all my changes, but why https://preview.cameyware.com/zh/test/ this page
+still live in preview?」
+
+**The cause:** S8's live path took a release with fewer pages than the build: the content file changed, the page's
+built file stayed (and LivePage shows the page as built when the live content lacks it); 重建预览站 took it too.
+
+| WP   | What                                                                |
+| ---- | ------------------------------------------------------------------- |
+| WP59 | `liveFits` wants the same pages both ways; 重建预览站 always builds |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -499,6 +511,7 @@ Copy From Existing).
 | WP56 | done                                         | v9.3.0                 |
 | WP57 | done                                         | v9.3.1                 |
 | WP58 | done                                         | v9.4.0                 |
+| WP59 | done                                         | v9.4.1                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

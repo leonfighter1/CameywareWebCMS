@@ -29,8 +29,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 21. A control whose state comes back through a refresh shows the new state and stays disabled until the new props arrive (remember the props it was set against, never clear it in an effect)
 22. On Windows, never pass /dev/stdin to node as a path: write the text with the Write tool and pass the file's path
 23. When a step will leave something out of what the user expects to see (a 停用 page, a file not coming), say so where the step is taken, with what to do
+24. A shortcut that skips a build checks what the build would remove as well as what it would add; an explicit rebuild never takes the shortcut
 
 ## Log
+
+### 2026-11-16: A page discarded stayed on preview: the live path kept its built file
+- **Symptom:** The owner discarded /test/ (built into preview at 23:10); preview.cameyware.com/zh/test/ still served the page; 重建预览站 had finished in 0 s
+- **Root cause:** liveFits accepted a release with fewer pages than the build (only 'no page it lacks'), so the content file was replaced but out/zh/test/ stayed, and LivePage falls back to the page as built when the live content lacks it; 重建预览站 took the same live path
+- **Fix:** liveFits wants the same pages both ways (a page gone forces a build, which swaps out/ whole); 重建预览站 always builds
+- **Rule:** A shortcut that skips a build checks what the build would remove as well as what it would add; an explicit rebuild never takes the shortcut (Rule 24)
 
 ### 2026-11-16: A new page pushed to preview while 停用 showed nowhere, and nothing said why
 - **Symptom:** The owner pushed job #4 (/test/) to preview; preview.cameyware.com/zh/test/ had nothing; the push and a rebuild both succeeded

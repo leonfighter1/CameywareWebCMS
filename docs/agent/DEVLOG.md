@@ -2,6 +2,13 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (p): v9.4.1 (a page gone from preview no longer stays)
+
+- The owner discarded /test/ and it still opened on preview: the 23:10 build had made out/zh/test/; the later releases
+  went the live way (content file only, release 44 without /test/), and LivePage shows the page as built when the live
+  content lacks it. `liveFits` now wants the same pages both ways; 重建预览站 (action rebuild) always builds. Mistake 24.
+- The owner's preview still has /test/ until a build: 重建预览站 once (left to the owner: it runs in their CMS).
+
 ## 2026-11-16 (o): v9.4.0 (a copied page shares its blocks)
 
 - The owner asked whether a copied page copies its components, then: copy only the page's frame (settings, metadata),
