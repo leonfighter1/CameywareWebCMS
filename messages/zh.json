@@ -86,7 +86,8 @@
     "previewDraft": "在新标签页打开它的草稿",
     "previewSaves": "先保存你的修改（草稿），再在新标签页打开预览",
     "splitTitle": "拆成新任务（{n} 个文件）",
-    "previewedIn": "上过预览站：第 {list} 版"
+    "previewedIn": "上过预览站：第 {list} 版",
+    "nameRule": "只用英文字母、数字、_ 和 -，不带中文和空格（内容可以是中文）"
   },
   "fields": {
     "linkHint": "/works/… 或 https://…",
@@ -590,7 +591,8 @@
     "removeAllPreview": "不能把任务 #{id} 的全部文件从预览站移除：先退回进行中，再终止任务",
     "uploadNoPage": "没有叫「{name}」的页面：文件名要和页面名一样（就是下载时的文件名）",
     "uploadOtherPage": "文件「{file}」不是所选页面「{page}」的：文件名要和页面名一样",
-    "uploadNotPage": "「{file}」不是页面文件"
+    "uploadNotPage": "「{file}」不是页面文件",
+    "fileName": "文件名「{name}」只能用英文字母、数字、_ 和 -，不能有中文或空格（内容可以是中文）"
   },
   "codeCheck": {
     "empty": "代码是空的",

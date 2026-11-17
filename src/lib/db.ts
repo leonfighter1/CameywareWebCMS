@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { bundlesFromTexts } from "./bundles";
 import { jobsFromCheckins } from "./job-migration";
+import { nameFiles } from "./names";
 import { namePages, pagesToLayouts } from "./pages";
 
 export type Db = PGlite | Transaction;
@@ -245,6 +246,12 @@ export const MIGRATIONS: (string | ((tx: Transaction) => Promise<void>))[] = [
     await tx.exec(`alter table pages add column name text`);
     await namePages(tx);
     await tx.exec(`create unique index pages_name on pages (name)`);
+  },
+  // S10 (the owner, 2026-11-16: 「所有的page name和file都不带中文，只有内容可以是中文」): every page's, block's, style's and
+  // layout's name in English letters, digits and _ (names.ts); a Chinese one renamed, its versions with it.
+  async (tx: Transaction) => {
+    await namePages(tx);
+    await nameFiles(tx);
   },
 ];
 

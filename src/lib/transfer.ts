@@ -15,6 +15,7 @@ import { bundleLabel, bundleOf } from "./bundles";
 import { both, check, checkBlock, GLOBALS, TYPES } from "./catalog";
 import type { Db } from "./db";
 import { fileStates, type Item, take } from "./files";
+import { asFileName, isFileName } from "./names";
 import { type Placement, placement, zonesOf } from "./pages";
 import {
   canonical,
@@ -580,8 +581,17 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
     (await listComponents(db)).filter((c) => !c.deleted).map((c) => [c.id, c.type] as const),
   );
 
-  const template = async (t: TemplateDoc) => {
-    const where = msg("check.atTemplate", { name: t.name || t.id || "" });
+  /**
+   * A file's name as the upload gives it, or (a Chinese one, from a file of before S10) the file's own, or one made in
+   * English for a new file.
+   */
+  const named = (name: string, own: string | undefined, made: string) =>
+    !name || isFileName(name) ? name : (own ?? (asFileName(name) || made));
+
+  const template = async (doc: TemplateDoc) => {
+    const where = msg("check.atTemplate", { name: doc.name || doc.id || "" });
+    const was = doc.id ? await getTemplate(db, doc.id) : undefined;
+    const t = { ...doc, name: named(doc.name, was?.name, `${doc.type}_style`) };
     if (!TYPES[t.type]) return void errors.push(at(where, msg("errors.noType", { type: t.type })));
     errors.push(...(await templateProblems(db, t.type, t.markup ?? "")).map((e) => at(where, e)));
     const existing = t.id ? await getTemplate(db, t.id) : undefined;
@@ -607,8 +617,10 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
     writes.push((tx) => createTemplate(tx, t.type, t.name, t.markup, by, id).then(() => undefined));
   };
 
-  const layout = async (l: LayoutDoc) => {
-    const where = msg("check.atLayout", { name: l.name || l.id || "" });
+  const layout = async (doc: LayoutDoc) => {
+    const where = msg("check.atLayout", { name: doc.name || doc.id || "" });
+    const was = doc.id && !isBuiltinLayout(doc.id) ? await getLayout(db, doc.id) : undefined;
+    const l = { ...doc, name: named(doc.name, was?.name, "layout") };
     errors.push(...(await layoutProblems(db, l.markup ?? "")).map((e) => at(where, e)));
     const existing = l.id && !isBuiltinLayout(l.id) ? await getLayout(db, l.id) : undefined;
     if (existing && !existing.deleted) {
@@ -633,7 +645,9 @@ export async function importDoc(db: PGlite, doc: Doc, by: string, apply: boolean
     writes.push((tx) => createLayout(tx, l.name, l.markup, by, id).then(() => undefined));
   };
 
-  const block = async (b: BlockDoc, copy: boolean, where: Detail): Promise<string> => {
+  const block = async (doc: BlockDoc, copy: boolean, where: Detail): Promise<string> => {
+    const was = doc.id ? await getComponent(db, doc.id) : undefined;
+    const b = { ...doc, name: doc.name === undefined ? undefined : named(doc.name, was?.name, doc.type) };
     const checked = checkBlock(b.type, b.data);
     errors.push(...checked.errors.map((e) => at(where, e)));
     const existing = b.id ? await getComponent(db, b.id) : undefined;

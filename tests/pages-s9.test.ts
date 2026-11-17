@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { checkBlock } from "@/lib/catalog";
 import { freshDb } from "@/lib/db";
 import { fileState, take } from "@/lib/files";
-import { pageNameOf, uniqueName } from "@/lib/pages";
+import { uniqueName } from "@/lib/names";
+import { pageNameOf } from "@/lib/pages";
 import { seedIfEmpty } from "@/lib/seed";
 import { copyPage, createPage, getComponent, getPage, listPages, saveComponent } from "@/lib/store";
 import { exportDoc, importPageFile } from "@/lib/transfer";
@@ -23,7 +24,9 @@ beforeEach(async () => {
 describe("a page's name", () => {
   it("is made from its title, every run of what isn't a letter or a digit one _", () => {
     expect(pageNameOf({ en: "Help & support", zh: "客服与帮助" }, "/support/")).toBe("Help_support");
-    expect(pageNameOf({ zh: "新的活动页" }, "/events/")).toBe("新的活动页");
+    // No English title: its address (S10: names in English alone).
+    expect(pageNameOf({ zh: "新的活动页" }, "/events/")).toBe("events");
+    expect(pageNameOf({ en: "禄命秘解 (Lu Ming Mi Jie)" }, "/works/lumingmijie/")).toBe("Lu_Ming_Mi_Jie");
     expect(pageNameOf({ en: "Cameyware | Software and App Development" }, "/")).toBe(
       "Cameyware_Software_and_App_Development",
     );
@@ -51,7 +54,7 @@ describe("a page copied", () => {
       "lee",
     );
     const copy = (await getPage(pg, id))!;
-    expect(copy).toMatchObject({ status: "inactive", layout: from.layout, name: "联系我们_副本" });
+    expect(copy).toMatchObject({ status: "inactive", layout: from.layout, name: "contact_copy" });
     expect(copy.blocks).toHaveLength(from.blocks.length);
     for (const [i, b] of copy.blocks.entries()) {
       const was = from.blocks[i]!;
@@ -98,7 +101,7 @@ it("marks each version with the preview releases it was in", async () => {
   const block = (await listPages(pg)).find((p) => p.path === "/contact/")!.blocks[0]!.id;
   const item = [{ kind: "component" as const, id: block }];
   await take(pg, item, "lee");
-  await saveComponent(pg, block, { name: "推过预览站的版本" }, "lee");
+  await saveComponent(pg, block, { name: "pushed_once" }, "lee");
   await checkIn(pg, item, "预览一次", "lee");
   const r = await toPreview(pg, item, "lee", "", built);
   await r.done;

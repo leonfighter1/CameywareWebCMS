@@ -1054,6 +1054,7 @@ function PlaceDialog({
   close: () => void;
   done: () => void;
 }) {
+  const tf = useTranslations("files");
   const [source, setSource] = useState<"shared" | "new" | "copy">(library.length ? "shared" : "new");
   const [pick, setPick] = useState<string | null>(current?.id ?? null);
   const [name, setName] = useState("");
@@ -1120,6 +1121,7 @@ function PlaceDialog({
         {source !== "shared" && (
           <TextInput
             label={t("blockName")}
+            description={tf("nameRule")}
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             data-testid="new-name"

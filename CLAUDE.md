@@ -71,7 +71,7 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
 - `src/lib`: the database (`db.ts`), the catalog's check, the working copy (`store.ts`, templates and layouts included),
   placements and migration 4's page upgrade (`pages.ts`), a page's rows (`rows.ts`), files'
   states (`files.ts`), resource bundles (`bundles.ts`, migration 3's merge), the workflow's file steps and versions
-  (`workflow.ts`), its jobs (`jobs.ts`: a ticket, a name, files, a step, approval, a time, the bell's news;
+  (`workflow.ts`), files' names in English (`names.ts`), its jobs (`jobs.ts`: a ticket, a name, files, a step, approval, a time, the bell's news;
   `job-migration.ts`), releases, environments and deployments (`releases.ts`), deploying (`deploy.ts`), the built-in
   templates' code and the website's checkout (`code.ts`), git (`git.ts`), download and upload
   (`transfer.ts`), sign-in (`auth.ts`), the first content (`seed.ts`), the two languages (`words.ts`), what pages hand

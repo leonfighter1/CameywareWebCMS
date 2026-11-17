@@ -65,6 +65,7 @@ export function LayoutEditor({
   preview: string;
 }) {
   const t = useTranslations("layout");
+  const tf = useTranslations("files");
   const router = useRouter();
   const mine = isMine(file, me);
   const [name, setName] = useState(layout.name);
@@ -149,6 +150,7 @@ export function LayoutEditor({
                 <Stack>
                   <TextInput
                     label={t("name")}
+                    description={tf("nameRule")}
                     value={name}
                     onChange={(e) => setName(e.currentTarget.value)}
                   />

@@ -287,7 +287,7 @@ describe("files: take, take over, put back, discard", () => {
 
   it("a new block is its maker's; discarded, it goes, unless a page of theirs still shows it", async () => {
     const page = (await listPages(pg)).find((p) => p.path === "/contact/")!;
-    const id = await createComponent(pg, "freeform", "地图", "lee", { html: { zh: "<b>地图</b>" } });
+    const id = await createComponent(pg, "freeform", "map", "lee", { html: { zh: "<b>地图</b>" } });
     expect((await fileState(pg, "component", id))!).toMatchObject({ status: "checked_out", owner: "lee" });
     await take(pg, [{ kind: "page", id: page.id }], "lee");
     await savePage(pg, page.id, { blocks: [...page.blocks, { id, zone: "main" }] }, "lee");
@@ -383,7 +383,7 @@ describe("the workflow", () => {
   it("takes a page's new blocks along at each step; a release never shows a page without one", async () => {
     const page = (await listPages(pg)).find((p) => p.path === "/contact/")!;
     const pageItem = [{ kind: "page" as const, id: page.id }];
-    const id = await createComponent(pg, "freeform", "地图", "lee", { html: { zh: "<b>地图</b>" } });
+    const id = await createComponent(pg, "freeform", "map", "lee", { html: { zh: "<b>地图</b>" } });
     await take(pg, pageItem, "lee");
     await savePage(pg, page.id, { blocks: [...page.blocks, { id, zone: "main" }] }, "lee");
     await checkIn(pg, pageItem, "联系页加地图", "lee");
@@ -436,17 +436,17 @@ describe("templates (component styles)", () => {
   const CENTRED = `<Box hero py="xl"><Title order="1" ta="center">{title}</Title></Box>`;
 
   it("draws a block with a template, which goes along with it to preview and production", async () => {
-    await expect(
-      createTemplate(pg, "hero_banner", "坏的", "<script>x</script>", "lee"),
-    ).rejects.toMatchObject({
-      details: [
-        expect.objectContaining({
-          key: "markup.unknownTag",
-          values: expect.objectContaining({ tag: "<script>" }),
-        }),
-      ],
-    });
-    const id = await createTemplate(pg, "hero_banner", "居中横幅", CENTRED, "lee");
+    await expect(createTemplate(pg, "hero_banner", "bad", "<script>x</script>", "lee")).rejects.toMatchObject(
+      {
+        details: [
+          expect.objectContaining({
+            key: "markup.unknownTag",
+            values: expect.objectContaining({ tag: "<script>" }),
+          }),
+        ],
+      },
+    );
+    const id = await createTemplate(pg, "hero_banner", "hero_centered", CENTRED, "lee");
     expect(await fileState(pg, "template", id)).toMatchObject({ status: "checked_out", owner: "lee" });
     await take(pg, homeItem, "lee");
     await expect(styleHero(pg, "tpl-none", "lee")).rejects.toMatchObject({
@@ -455,7 +455,7 @@ describe("templates (component styles)", () => {
     await styleHero(pg, id, "lee");
     const draft = await buildContent(pg, "draft");
     expect(draft.pages.find((p) => p.path === "/")!.blocks[0]!.template).toBe(id);
-    expect(draft.templates![id]).toEqual({ type: "hero_banner", name: "居中横幅", markup: CENTRED });
+    expect(draft.templates![id]).toEqual({ type: "hero_banner", name: "hero_centered", markup: CENTRED });
     await expect(deleteTemplate(pg, id, "lee")).rejects.toThrow(/还有页面在用/);
 
     // The page brings its new style along (lee holds it).
@@ -490,7 +490,7 @@ describe("templates (component styles)", () => {
   });
 
   it("refuses a page's check-in when its new style is someone else's, and a discard that would orphan it", async () => {
-    const id = await createTemplate(pg, "hero_banner", "金的样式", CENTRED, "kim");
+    const id = await createTemplate(pg, "hero_banner", "kim_style", CENTRED, "kim");
     await take(pg, homeItem, "lee");
     await styleHero(pg, id, "lee");
     await expect(checkIn(pg, homeItem, "要金的样式", "lee")).rejects.toMatchObject({
@@ -520,10 +520,10 @@ describe("page layouts and placements (S4)", () => {
   });
 
   it("a page in a CMS layout takes it along; a release refuses one without it; one in use isn't deleted", async () => {
-    await expect(createLayout(pg, "坏的", `<Box><Title>{title}</Title></Box>`, "lee")).rejects.toMatchObject({
+    await expect(createLayout(pg, "bad", `<Box><Title>{title}</Title></Box>`, "lee")).rejects.toMatchObject({
       details: [expect.objectContaining({ key: "markup.noZone" })],
     });
-    const id = await createLayout(pg, "宽横幅布局", LAYOUT, "lee");
+    const id = await createLayout(pg, "wide_banner_layout", LAYOUT, "lee");
     await take(pg, homeItem, "lee");
     await expect(savePage(pg, home.id, { layout: "lay-none" }, "lee")).rejects.toMatchObject({
       details: [expect.objectContaining({ key: "check.noLayout" })],
@@ -531,7 +531,7 @@ describe("page layouts and placements (S4)", () => {
     await savePage(pg, home.id, { layout: id }, "lee");
     const draft = await buildContent(pg, "draft");
     expect(draft.pages.find((p) => p.path === "/")!.layout).toBe(id);
-    expect(draft.layouts![id]).toEqual({ name: "宽横幅布局", markup: LAYOUT });
+    expect(draft.layouts![id]).toEqual({ name: "wide_banner_layout", markup: LAYOUT });
     await expect(deleteLayout(pg, id, "lee")).rejects.toThrow(/还有页面在用/);
     await checkIn(pg, homeItem, "首页换布局", "lee");
     expect((await fileState(pg, "layout", id))!.stage).toBe("checked_in");
@@ -552,7 +552,7 @@ describe("page layouts and placements (S4)", () => {
   it("refuses a zone name that isn't one and a style of another type", async () => {
     await take(pg, homeItem, "lee");
     const page = (await listPages(pg)).find((p) => p.path === "/")!;
-    const accordion = await createTemplate(pg, "accordion", "问答样式", `<Text>{title}</Text>`, "lee");
+    const accordion = await createTemplate(pg, "accordion", "qa_style", `<Text>{title}</Text>`, "lee");
     await expect(
       savePage(pg, page.id, { blocks: [{ ...page.blocks[0]!, zone: "Main Zone" }] }, "lee"),
     ).rejects.toMatchObject({ details: [expect.objectContaining({ key: "check.badZone" })] });
@@ -666,13 +666,14 @@ describe("download and upload", () => {
     const id = await createTemplate(
       pg,
       "hero_banner",
-      "带 < 和 & 的",
+      // Its name in English (S10); the markup carries < and & for the XML.
+      "xml_round_trip",
       `<Box hero>\n  <Title order="1">{title} &amp; {eyebrow}</Title>\n</Box>`,
       "lee",
     );
     await take(pg, homeItem, "lee");
     await styleHero(pg, id, "lee");
-    const layout = await createLayout(pg, "两栏", `<Zone name="main" />`, "lee");
+    const layout = await createLayout(pg, "two_columns", `<Zone name="main" />`, "lee");
     const doc = await exportDoc(pg, "site");
     expect(doc.kind === "site" && doc.templates?.map((t) => t.id)).toEqual([id]);
     expect(doc.kind === "site" && doc.layouts?.map((l) => l.id)).toEqual([layout]);

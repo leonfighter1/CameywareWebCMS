@@ -253,7 +253,7 @@ describe("workflow jobs", () => {
   it("takes a page's new block along, out of the job that held it", async () => {
     const page = (await listPages(pg)).find((p) => p.path === "/contact/")!;
     const pageItem = [{ kind: "page" as const, id: page.id }];
-    const block = await createComponent(pg, "freeform", "地图", "lee", { html: { zh: "<b>地图</b>" } });
+    const block = await createComponent(pg, "freeform", "map", "lee", { html: { zh: "<b>地图</b>" } });
     const blockJob = await createJob(pg, { name: "地图" }, [{ kind: "component", id: block }], "lee");
     await take(pg, pageItem, "lee");
     await savePage(pg, page.id, { blocks: [...page.blocks, { id: block, zone: "main" }] }, "lee");

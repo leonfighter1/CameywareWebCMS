@@ -14,6 +14,7 @@ import { knownTexts, standing } from "./code";
 import type { Db } from "./db";
 import { fileStates } from "./files";
 import { gitTexts } from "./git";
+import { nameFiles } from "./names";
 import { namePages, placement, upgradePage } from "./pages";
 import { siteRepo } from "./paths";
 import { createRelease } from "./releases";
@@ -136,6 +137,8 @@ export async function seedIfEmpty(db: PGlite, repo = siteRepo()): Promise<boolea
     ...GLOBAL_KEYS.map((k) => ({ kind: "global" as const, id: k })),
     ...[...new Set(Object.keys(texts).map(bundleOf))].map((id) => ({ kind: "bundle" as const, id })),
   ];
+  // Its files' names in English (S10): the website's snapshot names its blocks in Chinese.
+  await nameFiles(db);
   await publishDirect(db, items, "初始内容：从官网的 content/site.json 和 messages 导入", SYSTEM);
   const release = await createRelease(db, SYSTEM, "官网当时的内容", () => false);
   await recordSeed(db, release, SYSTEM);

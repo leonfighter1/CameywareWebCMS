@@ -114,6 +114,7 @@ export function TemplateEditor({
   preview: string;
 }) {
   const t = useTranslations("template");
+  const tf = useTranslations("files");
   const router = useRouter();
   const mine = isMine(file, me);
   const [name, setName] = useState(template.name);
@@ -199,6 +200,7 @@ export function TemplateEditor({
                 <Stack>
                   <TextInput
                     label={t("name")}
+                    description={tf("nameRule")}
                     value={name}
                     onChange={(e) => setName(e.currentTarget.value)}
                   />

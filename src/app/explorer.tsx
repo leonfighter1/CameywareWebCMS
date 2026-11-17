@@ -784,6 +784,7 @@ function NewFile({
   layouts: { name: string; label: string }[];
 }) {
   const t = useTranslations("explorer");
+  const tf = useTranslations("files");
   const router = useRouter();
   const [opened, { open, close }] = useDisclosure();
   const [path, setPath] = useState("/");
@@ -852,6 +853,7 @@ function NewFile({
                     ? t("layoutName")
                     : t("templateName")
             }
+            description={what !== "page" ? tf("nameRule") : undefined}
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             data-autofocus={what !== "page" ? true : undefined}

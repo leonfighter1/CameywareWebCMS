@@ -24,8 +24,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 16. Run a browser walk that changes files on a copy of the CMS (CMS_DATA_DIR copy, its own port), never on the CMS the owner uses; read the real one only
 17. A walk copy of the website (SITE_REPO clone from a local bare repository) gets its own npm ci, never a junction to the real node_modules; remove a junction with cmd rmdir, never rm -rf
 18. Decide whether discard removes a file by file.fresh (no production version), never by its change; every missing file gets the CMS's not-found page
+19. A test file whose beforeEach seeds a fresh database relies on vitest.config's hookTimeout (30 s); never lower it
 
 ## Log
+
+### 2026-11-16: beforeEach seeding a fresh database timed out under the full suite
+- **Symptom:** names.test and pages-s9.test: Hook timed out in 10000ms at beforeEach (freshDb + seedIfEmpty), only when every test file ran at once
+- **Root cause:** vitest's hookTimeout is 10 s by default; seeding a fresh PGlite database takes longer while eleven files run in parallel
+- **Fix:** vitest.config.ts: hookTimeout 30_000 beside testTimeout
+- **Rule:** A test file whose beforeEach seeds a fresh database relies on vitest.config's hookTimeout (30 s); never lower it (Rule 19)
 
 ### 2026-11-16: A new template deleted then discarded showed a 404
 - **Symptom:** Discard on a never-published template that had been deleted reloaded its page: 404 This page could not be found

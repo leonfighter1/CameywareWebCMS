@@ -86,7 +86,8 @@
     "previewDraft": "Open its draft in a new tab",
     "previewSaves": "Saves your changes (a draft) first, then opens the preview in a new tab",
     "splitTitle": "Split into a new job ({n, plural, one {# file} other {# files}})",
-    "previewedIn": "On preview in releases {list}"
+    "previewedIn": "On preview in releases {list}",
+    "nameRule": "English letters, digits, _ and - only, no Chinese or spaces (the content may be in any language)"
   },
   "fields": {
     "linkHint": "/works/… or https://…",
@@ -590,7 +591,8 @@
     "removeAllPreview": "You can't remove every file of job #{id} from preview: send it back to in progress, then terminate it",
     "uploadNoPage": "No page is named “{name}”: the file's name must be the page's name (as it was downloaded)",
     "uploadOtherPage": "The file “{file}” isn't the picked page's (“{page}”): its name must be the page's name",
-    "uploadNotPage": "“{file}” isn't a page file"
+    "uploadNotPage": "“{file}” isn't a page file",
+    "fileName": "The file name “{name}” may only have English letters, digits, _ and -, no Chinese or spaces (the content may be in any language)"
   },
   "codeCheck": {
     "empty": "The code is empty",

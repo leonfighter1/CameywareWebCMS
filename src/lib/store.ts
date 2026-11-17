@@ -13,6 +13,7 @@ import { both, checkBlock, check, defaults, fieldsOf, GLOBALS, ICONS, TYPES } fr
 import type { Db } from "./db";
 import { claimNew, fileStates, type FileRow, KINDS, type Kind, mustHold } from "./files";
 import { canonical } from "./json";
+import { asFileName, mustBeFileName } from "./names";
 import { namePages, type Placement, placement } from "./pages";
 import { siteRepo } from "./paths";
 import { type Both, CmsError, msg } from "./words";
@@ -442,7 +443,7 @@ export async function copyPage(db: Db, from: string, p: { path: string; title: L
     if (copies.has(b.id)) continue;
     const c = await getComponent(db, b.id);
     if (c && !c.deleted)
-      copies.set(b.id, await createComponent(db, c.type, `${c.name || c.id}（副本）`, by, c.data));
+      copies.set(b.id, await createComponent(db, c.type, `${asFileName(c.name) || c.type}_copy`, by, c.data));
   }
   await savePage(
     db,
@@ -510,6 +511,7 @@ export async function createComponent(
   id = newId(type),
 ) {
   if (!TYPES[type]) throw new CmsError("errors.noType", { type });
+  mustBeFileName(name, true);
   const checked =
     data === undefined ? { value: defaults(fieldsOf(type)), errors: [] } : checkBlock(type, data);
   if (checked.errors.length) throw new CmsError("errors.blockNotSaved", undefined, checked.errors);
@@ -529,6 +531,7 @@ export async function saveComponent(db: Db, id: string, c: { name?: string; data
   const now = await getComponent(db, id);
   if (!now || now.deleted) throw new CmsError("errors.noBlock");
   await mustHold(db, "component", id, by);
+  if (c.name !== undefined) mustBeFileName(c.name, true);
   const checked = c.data === undefined ? { value: now.data, errors: [] } : checkBlock(now.type, c.data);
   if (checked.errors.length) throw new CmsError("errors.blockNotSaved", undefined, checked.errors);
   await db.query(
@@ -615,6 +618,7 @@ export async function createTemplate(
 ) {
   if (!TYPES[type]) throw new CmsError("errors.noType", { type });
   if (!name.trim()) throw new CmsError("errors.templateName");
+  mustBeFileName(name.trim());
   const problems = await templateProblems(db, type, markup);
   if (problems.length) throw new CmsError("errors.templateNotSaved", undefined, problems);
   await db.query(`insert into templates (id, type, name, markup, updated_by) values ($1, $2, $3, $4, $5)`, [
@@ -634,6 +638,7 @@ export async function saveTemplate(db: Db, id: string, t: { name?: string; marku
   await mustHold(db, "template", id, by);
   const name = (t.name ?? now.name).trim();
   if (!name) throw new CmsError("errors.templateName");
+  mustBeFileName(name);
   const markup = t.markup ?? now.markup;
   const problems = await templateProblems(db, now.type, markup);
   if (problems.length) throw new CmsError("errors.templateNotSaved", undefined, problems);
@@ -664,6 +669,7 @@ export async function deleteTemplate(db: Db, id: string, by: string) {
 /** A new page layout (its markup checked), checked out to [by]. */
 export async function createLayout(db: Db, name: string, markup: string, by: string, id = newId("lay")) {
   if (!name.trim()) throw new CmsError("errors.layoutName");
+  mustBeFileName(name.trim());
   const problems = await layoutProblems(db, markup);
   if (problems.length) throw new CmsError("errors.layoutNotSaved", undefined, problems);
   await db.query(`insert into layouts (id, name, markup, updated_by) values ($1, $2, $3, $4)`, [
@@ -682,6 +688,7 @@ export async function saveLayout(db: Db, id: string, l: { name?: string; markup?
   await mustHold(db, "layout", id, by);
   const name = (l.name ?? now.name).trim();
   if (!name) throw new CmsError("errors.layoutName");
+  mustBeFileName(name);
   const markup = l.markup ?? now.markup;
   const problems = await layoutProblems(db, markup);
   if (problems.length) throw new CmsError("errors.layoutNotSaved", undefined, problems);

@@ -46,6 +46,7 @@ export function ComponentEditor({
   back?: string;
 }) {
   const t = useTranslations("component");
+  const tf = useTranslations("files");
   const router = useRouter();
   const mine = isMine(file, me);
   const [name, setName] = useState(component.name);
@@ -120,7 +121,12 @@ export function ComponentEditor({
         <Card withBorder>
           <Editable open={mine}>
             <Stack>
-              <TextInput label={t("name")} value={name} onChange={(e) => setName(e.currentTarget.value)} />
+              <TextInput
+                label={t("name")}
+                description={tf("nameRule")}
+                value={name}
+                onChange={(e) => setName(e.currentTarget.value)}
+              />
               <FieldsEditor fields={fields} value={data} onChange={setData} ctx={ctx} />
               <Group justify="space-between">
                 <Group gap="xs">

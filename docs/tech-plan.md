@@ -365,6 +365,20 @@ check-in already is a version, so what went to preview was never lost: now it sa
 | WP50 | 部署记录's 每页 (20/50/100, `per`) and its pages; 下载与上传's 这一页能做什么                                    |
 | WP51 | `manifestsOn`: a version's `previewed` releases beside `published`                                               |
 
+## v9.1.0 (medium, after S9): files named in English
+
+**The owner (2026-11-16):** 「更新一下内容，所有的page name和file都不带中文，只有内容可以是中文。」
+
+**Read as:** a page's, a block's, a style's and a layout's name is English letters, digits, _ and - (names.ts); what the
+file holds may be Chinese. A page's name comes from its English title, else its address; the files of before are
+renamed (a block by its page's address and its type, a style by its type) with their versions, so nothing reads as
+changed; a Chinese name is refused on create and save; an upload of before keeps the file's own name.
+
+| WP   | What                                                                                                           |
+| ---- | -------------------------------------------------------------------------------------------------------------- |
+| WP52 | `names.ts` (isFileName, asFileName, uniqueName, mustBeFileName, nameFiles); pageNameOf in English; migration 9 |
+| WP53 | Refusals in store.ts, uploads' names kept (transfer.ts), the rule beside every name field                      |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -420,6 +434,8 @@ check-in already is a version, so what went to preview was never lost: now it sa
 | WP49 | done                                         | v9.0.0                 |
 | WP50 | done                                         | v9.0.0                 |
 | WP51 | done                                         | v9.0.0                 |
+| WP52 | done                                         | v9.1.0                 |
+| WP53 | done                                         | v9.1.0                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

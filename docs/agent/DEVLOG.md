@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (k): v9.1.0 (files named in English)
+
+- The owner: page names and files without Chinese, only the content. `names.ts` holds the rule and `nameFiles`, which
+  renames blocks (page address + type), styles (type) and layouts and rewrites their versions' names (no file reads as
+  changed); migration 9 runs it with `namePages` (now English: the English title, else the address); the seed runs it
+  before publishing the first content. store.ts refuses a Chinese name; importDoc keeps a file's own name when an
+  old file brings a Chinese one. The real CMS renamed: e.g. contact_page_title, hero_banner_style, Lu_Ming_Mi_Jie.
+- Mistake 19: hookTimeout 30 s (seeding in beforeEach under the full suite).
+
 ## 2026-11-16 (j): v9.0.0, S9 (page names, a page copied, a page's own file, the history's pages, versions on preview)
 
 - Migration 8: pages.name, made by `namePages` (pages.ts) after every insert (createPage, the seed, writeWorking) from
