@@ -48,6 +48,7 @@ import {
   changeOf,
   forget,
   getPage,
+  inactivePage,
   type Kind,
   laidOutBy,
   type Placement,
@@ -81,6 +82,8 @@ export type FileInfo = FileRow & {
   by: string;
   /** Deleted in the working copy (a page, a block or a template marked so). */
   deleted: boolean;
+  /** A page 停用 in its working copy: neither preview nor production shows it. */
+  inactive: boolean;
 };
 
 /** Every file with its state, its name and its change: what 我的文件, the workflow and the central page list. */
@@ -117,6 +120,7 @@ export async function files(db: Pg): Promise<FileInfo[]> {
       at: w.at,
       by: w.by,
       deleted: w.deleted,
+      inactive: inactivePage(w),
     });
   }
   return out.sort(

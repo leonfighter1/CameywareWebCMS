@@ -413,6 +413,15 @@ check-in takes free ones along and names the others' with their holder. 我的�
 | WP55 | `dependencies`, `takeTheirParts`; check-in takes free parts, names the others' and holder |
 | WP56 | 依赖 on 我的文件 (ticks take / put back) and in 加入工作流; dependencies off the top list |
 
+## v9.3.1 (small, after v9.3.0): 停用 pages marked
+
+**The owner (2026-11-16)**, after job #4 reached 预览站 and /zh/test/ showed nothing: 「检查一下这个workflow 为何我已经
+放进预览了，但是https://preview.cameyware.com/zh/test/ 却没有」; the page was 停用; on the offer of a note: 「对，需要提示一下」.
+
+| WP   | What                                                                                 |
+| ---- | ------------------------------------------------------------------------------------ |
+| WP57 | `inactivePage`; a 停用 badge in file tables; notes in 加入工作流 and on the job page |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -473,6 +482,7 @@ check-in takes free ones along and names the others' with their holder. 我的�
 | WP54 | done                                         | v9.2.0                 |
 | WP55 | done                                         | v9.3.0                 |
 | WP56 | done                                         | v9.3.0                 |
+| WP57 | done                                         | v9.3.1                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

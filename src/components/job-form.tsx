@@ -9,6 +9,7 @@
  */
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Group,
@@ -26,7 +27,7 @@ import { useEffect, useState } from "react";
 import {
   addToJobAction,
   createJobAction,
-  dependenciesAction,
+  joinInfoAction,
   openJobsAction,
   splitJobAction,
 } from "@/app/actions";
@@ -147,10 +148,13 @@ export function JobForm({
   const [pick, setPick] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [deps, setDeps] = useState<DependencyView[]>([]);
+  const [inactive, setInactive] = useState<Set<string>>(new Set());
   const loadDeps = () =>
-    dependenciesAction(items.map(({ kind, id }) => ({ kind, id }))).then(
-      (r) => r.ok && setDeps(r.value ?? []),
-    );
+    joinInfoAction(items.map(({ kind, id }) => ({ kind, id }))).then((r) => {
+      if (!r.ok || !r.value) return;
+      setDeps(r.value.deps);
+      setInactive(new Set(r.value.inactive));
+    });
   useEffect(() => {
     if (split) return;
     void loadDeps();
@@ -212,10 +216,27 @@ export function JobForm({
             >
               {tf(`kinds.${f.kind}`)} · {f.label ?? f.id}
               {split && moving.has(keyOf(f)) && <IconArrowRight size={12} style={{ marginLeft: 6 }} />}
+              {f.kind === "page" && inactive.has(f.id) && (
+                <Badge size="xs" color="orange" variant="outline" ml={6} title={tf("inactiveHint")}>
+                  {tf("inactivePage")}
+                </Badge>
+              )}
             </Text>
           ))}
         </Box>
       </ScrollArea.Autosize>
+      {!split && !!inactive.size && (
+        <Alert color="orange" p="xs" data-testid="job-inactive">
+          <Text size="sm">
+            {t("inactiveJoin", {
+              list: items
+                .filter((f) => f.kind === "page" && inactive.has(f.id))
+                .map((f) => f.label ?? f.id)
+                .join("、"),
+            })}
+          </Text>
+        </Alert>
+      )}
       {split ? (
         <Text size="xs" c="dimmed">
           {t("splitHelp", { n: items.length })}

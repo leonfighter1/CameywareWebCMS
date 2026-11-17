@@ -101,7 +101,9 @@
       "workflow": "In the workflow",
       "gone": "Gone"
     },
-    "takenWithDeps": "Taken; the {n, plural, one {# dependency} other {# dependencies}} the page uses are yours too (see My files)"
+    "takenWithDeps": "Taken; the {n, plural, one {# dependency} other {# dependencies}} the page uses are yours too (see My files)",
+    "inactivePage": "Inactive",
+    "inactiveHint": "An inactive page: neither preview nor production shows it, only the CMS preview. Turn on Active in the page's Metadata."
   },
   "fields": {
     "linkHint": "/works/… or https://…",
@@ -438,7 +440,9 @@
       "others": "{owner}'s: take it over first",
       "workflow": "In the workflow: goes with its job",
       "gone": "Gone: replace it in the page editor"
-    }
+    },
+    "inactiveJoin": "{list} is inactive: once in the workflow, neither preview nor production shows it (only the CMS preview). To show it, turn on Active in the page's Metadata first, then add it.",
+    "inactiveNote": "{list} is inactive: neither preview nor production shows it (only the CMS preview). To show it: remove it from the job (at preview, send the job back to in progress first), turn on Active in the page's Metadata, then add it to this job again."
   },
   "bell": {
     "summary": "{n, plural, =0 {No new notifications} one {# new notification} other {# new notifications}}",

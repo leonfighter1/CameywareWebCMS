@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (n): v9.3.1 (停用 pages marked)
+
+- The owner pushed job #4 (/test/) to preview and found nothing at /zh/test/: the push (#430) and a rebuild (#431) were
+  fine; /test/ was 停用 (every new page starts so), and 停用 pages stay out of preview and production. Read on the real
+  CMS without changing it (rule 16). Now `inactivePage` (store.ts) → FileInfo/FileView.inactive; FileTable's 停用 badge;
+  `joinInfoAction` (was dependenciesAction) also names the chosen 停用 pages for 加入工作流's note; the job page's note.
+- Mistake 23. Walked on a copy (7 checks; the owner had meanwhile removed /test/ from #4, so a new job was used).
+
 ## 2026-11-16 (m): v9.3.0 (a page's dependencies, 依赖)
 
 - The owner couldn't add /test/: its new style was nobody's, and check-in refused it as someone else's with no name.

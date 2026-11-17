@@ -806,6 +806,19 @@ export function JobManager({
             </Group>
           </Group>
           <Stack gap="md">
+            {/* The owner pushed a new page still 停用 and found nothing on preview: say so where the job is. */}
+            {files.some((f) => f.inactive) && (
+              <Alert color="orange" p="xs" data-testid="job-inactive">
+                <Text size="sm">
+                  {t("inactiveNote", {
+                    list: files
+                      .filter((f) => f.inactive)
+                      .map((f) => f.label)
+                      .join("、"),
+                  })}
+                </Text>
+              </Alert>
+            )}
             {CATEGORIES.map((c) => {
               const of = files.filter((f) => c.kinds.includes(f.kind));
               if (!of.length) return null;

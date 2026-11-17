@@ -16,6 +16,7 @@ import {
   changes,
   createComponent,
   createLayout,
+  createPage,
   createTemplate,
   deleteLayout,
   deleteTemplate,
@@ -31,6 +32,7 @@ import {
   checkIn,
   dependencies,
   discard,
+  files,
   restoreVersion,
   rollbackProduction,
   takeTheirParts,
@@ -517,6 +519,16 @@ describe("templates (component styles)", () => {
       owner: "lee",
       stage: "checked_in",
     });
+  });
+
+  // The owner, 2026-11-16: a new page pushed to preview while still 停用 showed nowhere: 「需要提示一下」.
+  it("marks a page that is 停用 (a new one is), and only pages", async () => {
+    const id = await createPage(pg, { path: "/quiet/", title: { zh: "安静", en: "Quiet" } }, "lee");
+    const of = async () => (await files(pg)).find((f) => f.kind === "page" && f.id === id)!;
+    expect((await of()).inactive).toBe(true);
+    await savePage(pg, id, { status: "active" }, "lee");
+    expect((await of()).inactive).toBe(false);
+    expect((await files(pg)).filter((f) => f.kind !== "page").every((f) => !f.inactive)).toBe(true);
   });
 
   // The owner, 2026-11-16: 依赖 under 我的文件, ticked (yours) by default, unticked for someone else to take a while.

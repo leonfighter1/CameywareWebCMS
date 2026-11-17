@@ -28,8 +28,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 20. A refusal about a related file names it by its label, says whose it is and where to act; a part nobody holds is taken along, never treated as someone else's
 21. A control whose state comes back through a refresh shows the new state and stays disabled until the new props arrive (remember the props it was set against, never clear it in an effect)
 22. On Windows, never pass /dev/stdin to node as a path: write the text with the Write tool and pass the file's path
+23. When a step will leave something out of what the user expects to see (a 停用 page, a file not coming), say so where the step is taken, with what to do
 
 ## Log
+
+### 2026-11-16: A new page pushed to preview while 停用 showed nowhere, and nothing said why
+- **Symptom:** The owner pushed job #4 (/test/) to preview; preview.cameyware.com/zh/test/ had nothing; the push and a rebuild both succeeded
+- **Root cause:** new pages start 停用 and 停用 pages are left out of preview and production by design; neither 加入工作流 nor the job page said the page was 停用
+- **Fix:** files() marks inactive pages (inactivePage in store.ts); FileTable shows a 停用 badge; 加入工作流 and the job page say it won't show and how to turn it on
+- **Rule:** When a step will leave something out of what the user expects to see (a 停用 page, a file not coming), say so where the step is taken, with what to do (Rule 23)
 
 ### 2026-11-16: node read /dev/stdin in Git Bash as a symlink stub
 - **Symptom:** A heredoc piped to node -e with /dev/stdin as the file wrote '!<symlink>' and NUL bytes into dependencies.tsx

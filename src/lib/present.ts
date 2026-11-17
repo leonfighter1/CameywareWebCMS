@@ -34,6 +34,8 @@ export type FileView = {
   deleted: boolean;
   /** Never published: production has no version of it. */
   fresh: boolean;
+  /** A page 停用: neither preview nor production shows it. */
+  inactive: boolean;
 };
 
 export const fileView = (f: FileInfo, lang: Lang): FileView => ({
@@ -53,6 +55,7 @@ export const fileView = (f: FileInfo, lang: Lang): FileView => ({
   by: f.by,
   deleted: f.deleted,
   fresh: !f.prod_revision_id,
+  inactive: f.inactive,
 });
 
 /** Every file's view, by `kind:id`. */

@@ -29,6 +29,7 @@ import {
   getLayout,
   getPage,
   getTemplate,
+  inactivePage,
   type Kind,
   layoutProblems,
   type PageChange,
@@ -408,16 +409,21 @@ export async function addToJobAction(job: number, items: Item[]) {
 }
 
 /**
- * 加入工作流's 依赖 (the owner, 2026-11-16: 「你需要更加明了指出是哪个文件需要checkout」): what [items] take along, apart
- * from themselves, each with its name, editor, folder and where it stands for you.
+ * What 加入工作流 says about [items] before they go in: their 依赖 (the owner, 2026-11-16: 「你需要更加明了指出是哪个文件
+ * 需要checkout」), apart from themselves, each with its name, editor, folder and where it stands for you; and the pages
+ * among them that are 停用 (「需要提示一下」: neither preview nor production will show them).
  */
-export async function dependenciesAction(items: Item[]) {
+export async function joinInfoAction(items: Item[]) {
   return attempt(async (lang) => {
     const user = await editor();
     const pg = await database();
     const given = new Set(items.map(keyOf));
+    const work = await workingStates(pg);
     const deps = (await dependencies(pg, items, user.login)).filter((d) => !given.has(keyOf(d)));
-    return dependencyViews(deps, await workingStates(pg), lang, (t) => typeName(t, lang));
+    return {
+      deps: dependencyViews(deps, work, lang, (t) => typeName(t, lang)),
+      inactive: items.filter((i) => inactivePage(work.get(keyOf(i)))).map((i) => i.id),
+    };
   });
 }
 

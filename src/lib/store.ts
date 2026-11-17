@@ -245,6 +245,10 @@ export type Working = {
   by: string;
 };
 
+/** A page 停用 in its working copy: neither preview nor production shows it. */
+export const inactivePage = (w: Working | undefined) =>
+  w?.kind === "page" && (w.state as { status?: string }).status === "inactive";
+
 /** Every file of the working copy as it would be checked in: by `kind:id`, its state and whether it is deleted. */
 export async function workingStates(db: Db) {
   const out = new Map<string, Working>();

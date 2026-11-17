@@ -1,6 +1,6 @@
 "use client";
 /** A list of files to pick from: each with its kind, its name (to its editor), its state and what the caller adds. */
-import { Anchor, Badge, Checkbox, Table, Text } from "@mantine/core";
+import { Anchor, Badge, Checkbox, Group, Table, Text } from "@mantine/core";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
@@ -87,7 +87,21 @@ export function FileTable({
                 </Anchor>
               </Table.Td>
               <Table.Td>
-                <StateBadges file={f} me={me} size="xs" />
+                <Group gap={4} wrap="wrap">
+                  <StateBadges file={f} me={me} size="xs" />
+                  {f.inactive && (
+                    <Badge
+                      size="xs"
+                      color="orange"
+                      variant="outline"
+                      title={t("inactiveHint")}
+                      style={{ minWidth: "max-content" }}
+                      data-testid={`inactive-${f.id}`}
+                    >
+                      {t("inactivePage")}
+                    </Badge>
+                  )}
+                </Group>
                 {f.busy && (
                   <Text size="xs" c="dimmed">
                     {t("busy")}
