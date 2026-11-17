@@ -43,17 +43,28 @@ import {
 } from "@/lib/store";
 import { isBuiltinLayout } from "@/generated/layouts";
 import { importDoc, parseUpload } from "@/lib/transfer";
+import { discard, rebuildPreview, restoreVersion, rollbackProduction } from "@/lib/workflow";
 import {
-  backToCheckIn,
-  checkIn,
-  discard,
-  rebuildPreview,
-  restoreVersion,
-  rollbackProduction,
-  terminate,
-  toPreview,
-  toProduction,
-} from "@/lib/workflow";
+  type Actor,
+  addToJob,
+  approveJob,
+  bell,
+  cancelSchedule,
+  createJob,
+  jobBack,
+  jobItems,
+  jobToPreview,
+  markSeen,
+  openJobs,
+  publishJob,
+  rejectJob,
+  removeFromJob,
+  splitJob,
+  submitJob,
+  terminateJob,
+} from "@/lib/jobs";
+import { canPublish } from "@/lib/auth";
+import { bellView, when } from "@/lib/present";
 import { CmsError, LANG_COOKIE, type Lang, say, sayAll } from "@/lib/words";
 import type { L10n } from "@/generated/model";
 import { starterTemplate } from "@/generated/template";
@@ -321,58 +332,161 @@ export async function restoreVersionAction(kind: Kind, id: string, revision: num
   });
 }
 
-// ---- the workflow's steps ---------------------------------------------------------------------------------
+// ---- the workflow's jobs (S7) --------------------------------------------------------------------------------
 
 /** The CMS's own preview built again when built-in templates came into the workflow or left it (it shows them). */
 const rebuildFor = (items: Item[]) => items.some((i) => i.kind === "code") && startCmsSiteBuild(true);
 
-export async function checkInAction(items: Item[], message: string) {
+/** The caller as a job's step sees them: who, and whether they approve and publish (管理员 and up). */
+async function actor(): Promise<Actor> {
+  const user = await editor();
+  return { login: user.login, publisher: canPublish(user.role) };
+}
+
+/** 新建任务: your checked-out [items] as a new job (the ticket may be empty); its number. */
+export async function createJobAction(items: Item[], ticket: string, name: string) {
   return attempt(async () => {
     const user = await editor();
-    const id = await checkIn(await database(), items, message, user.login);
+    const id = await createJob(await database(), { ticket, name }, items, user.login);
     rebuildFor(items);
     done();
     return id;
   });
 }
 
-/** 终止: back to whoever checked them in. */
-export async function terminateAction(items: Item[]) {
+/** 加到任务: your checked-out [items] into your job [job] at 进行中. */
+export async function addToJobAction(job: number, items: Item[]) {
   return attempt(async () => {
-    await editor();
-    await terminate(await database(), items);
+    await addToJob(await database(), job, items, await actor());
     rebuildFor(items);
     done();
   });
 }
 
+/** The jobs at 进行中, everyone's (where 加到任务 can put files: yours, or someone else's). */
+export async function openJobsAction() {
+  return attempt(async (lang) => {
+    const user = await editor();
+    return (await openJobs(await database())).map((j) => ({
+      mine: j.author === user.login,
+      id: j.id,
+      ticket: j.ticket,
+      name: j.name,
+      author: j.author,
+      files: j.files,
+      at: when(j.updated_at, lang),
+    }));
+  });
+}
+
+/** 从任务移除: at once at 进行中; at 预览站 once preview is built again without them. */
+export async function removeFromJobAction(job: number, items: Item[]) {
+  return attempt(async () => {
+    const r = await removeFromJob(await database(), job, items, await actor());
+    rebuildFor(r.moved);
+    done();
+    return { deployment: r.deployment };
+  });
+}
+
+export async function splitJobAction(job: number, items: Item[], ticket: string, name: string) {
+  return attempt(async () => {
+    const id = await splitJob(await database(), job, items, { ticket, name }, await actor());
+    done();
+    return id;
+  });
+}
+
+/** 终止: the job's files back to whoever checked them in. */
+export async function terminateJobAction(job: number) {
+  return attempt(async () => {
+    const moved = await terminateJob(await database(), job, await actor());
+    rebuildFor(moved);
+    done();
+  });
+}
+
 /** 推到预览站: built into preview.cameyware.com in the background. */
-export async function pushPreviewAction(items: Item[], note: string) {
+export async function jobPreviewAction(job: number, note: string) {
   return attempt(async () => {
-    const user = await editor();
-    const r = await toPreview(await database(), items, user.login, note);
+    const r = await jobToPreview(await database(), job, await actor(), note);
     done();
-    return { release: r.release, deployment: r.deployment, items: r.items.length };
+    return { deployment: r.deployment, items: r.items };
   });
 }
 
-/** 退回签入: preview built again without them. */
-export async function backAction(items: Item[]) {
+/** 退回进行中: preview built again without the job's files. */
+export async function jobBackAction(job: number) {
   return attempt(async () => {
-    const user = await editor();
-    const r = await backToCheckIn(await database(), items, user.login);
+    const r = await jobBack(await database(), job, await actor());
     done();
-    return { release: r.release, deployment: r.deployment };
+    return { deployment: r.deployment };
   });
 }
 
-/** 推到正式站 (管理员 and up): committed and pushed to www.cameyware.com. */
-export async function pushProductionAction(items: Item[], note: string) {
+export async function submitJobAction(job: number, note: string) {
   return attempt(async () => {
-    const user = await publisher();
-    const r = await toProduction(await database(), items, user.login, note);
+    await submitJob(await database(), job, await actor(), note);
     done();
-    return { release: r.release, deployment: r.deployment, items: r.items.length };
+  });
+}
+
+/** 批准 (管理员 and up). */
+export async function approveJobAction(job: number, note: string) {
+  return attempt(async () => {
+    await publisher();
+    await approveJob(await database(), job, await actor(), note);
+    done();
+  });
+}
+
+/** 退回 with why (管理员 and up). */
+export async function rejectJobAction(job: number, reason: string) {
+  return attempt(async () => {
+    await publisher();
+    await rejectJob(await database(), job, await actor(), reason);
+    done();
+  });
+}
+
+/**
+ * 发布 (管理员 and up): [at] (an ISO time) publishes it then (定时), none at once: committed and pushed to
+ * www.cameyware.com.
+ */
+export async function publishJobAction(job: number, at: string | null, note: string) {
+  return attempt(async () => {
+    await publisher();
+    const pg = await database();
+    const items = await jobItems(pg, job);
+    const r = await publishJob(pg, job, await actor(), { at: at ? new Date(at) : null, note });
+    if (!at) rebuildFor(items);
+    done();
+    return { scheduled: r.scheduled, deployment: r.deployment };
+  });
+}
+
+/** 取消定时 (管理员 and up). */
+export async function cancelScheduleAction(job: number) {
+  return attempt(async () => {
+    await publisher();
+    await cancelSchedule(await database(), job, await actor());
+    done();
+  });
+}
+
+/** The bell (asked again each minute by the page): the approvals waiting and your jobs' news. */
+export async function bellAction() {
+  return attempt(async (lang) => {
+    const user = await editor();
+    return bellView(await bell(await database(), user.login, canPublish(user.role)), lang);
+  });
+}
+
+/** The bell opened: its news seen. */
+export async function seenAction() {
+  return attempt(async () => {
+    const user = await editor();
+    await markSeen(await database(), user.login);
   });
 }
 

@@ -5,7 +5,7 @@
  * what can be done to it now (拿取, 接手, 放回, 丢弃) and its versions. The editor's fields are open only while it is yours
  * (`Editable`).
  */
-import { Alert, Anchor, Badge, Button, Drawer, Group, Stack, Text, Textarea } from "@mantine/core";
+import { Alert, Anchor, Badge, Button, Drawer, Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { IconHistory, IconLock } from "@tabler/icons-react";
@@ -13,8 +13,9 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
-import { checkInAction, discardAction, putBackAction, restoreVersionAction, takeAction } from "@/app/actions";
+import { discardAction, putBackAction, restoreVersionAction, takeAction } from "@/app/actions";
 import type { FileView, VersionView } from "@/lib/present";
+import { type Chosen, JobForm } from "./job-form";
 import { report } from "./result";
 import { NEW_TAB } from "@/components/links";
 
@@ -81,31 +82,24 @@ export function Editable({ open, children }: { open: boolean; children: ReactNod
   );
 }
 
-/** 签入 for [items]: a message, then into the workflow. */
-export function checkInModal(
-  items: { kind: FileView["kind"]; id: string }[],
+/**
+ * 加入工作流 (S7) for [items]: a new job or one of yours at 进行中 (JobForm); with [split], split off from that job. [done]
+ * gets the job's number.
+ */
+export function jobModal(
+  items: Chosen[],
   t: ReturnType<typeof useTranslations<"files">>,
-  done: () => void,
+  done: (job?: number) => void,
+  split?: { job: number; ticket: string; files: Chosen[] },
 ) {
-  let message = "";
-  modals.openConfirmModal({
-    title: t("checkInTitle", { n: items.length }),
-    children: (
-      <Stack gap="xs">
-        <Text size="sm">{t("checkInHelp")}</Text>
-        <Textarea
-          label={t("message")}
-          autosize
-          minRows={2}
-          data-autofocus
-          onChange={(e) => (message = e.currentTarget.value)}
-        />
-      </Stack>
-    ),
-    labels: { confirm: t("checkIn"), cancel: t("cancel") },
-    onConfirm: async () => {
-      if (report(await checkInAction(items, message), t("checkedIn"))) done();
-    },
+  // Named first: the form closes its own dialog.
+  const id = `job-${Date.now()}`;
+  modals.open({
+    modalId: id,
+    // Room for the jobs' table (ticket, name, creator, date).
+    size: "lg",
+    title: split ? t("splitTitle", { n: items.length }) : t("checkInTitle", { n: items.length }),
+    children: <JobForm items={items} split={split} close={() => modals.close(id)} done={done} />,
   });
 }
 
@@ -274,7 +268,7 @@ export function FileBar({
   const t = useTranslations("files");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const item = [{ kind: file.kind, id: file.id }];
+  const item = [{ kind: file.kind, id: file.id, label: file.label }];
   const after = (ok: boolean) => {
     if (!ok) return;
     router.refresh();
@@ -301,6 +295,7 @@ export function FileBar({
         ? t("barLocked", {
             owner: file.owner ?? "",
             stage: file.stage === "preview" ? t("atPreview") : t("atCheckedIn"),
+            job: file.job ? `#${file.job.id} ${file.job.name}` : "—",
           })
         : mine
           ? t("barMine", { since: file.since })
@@ -342,7 +337,7 @@ export function FileBar({
           )}
           {mine && (
             <>
-              <Button size="xs" onClick={() => checkInModal(item, t, () => after(true))}>
+              <Button size="xs" onClick={() => jobModal(item, t, () => after(true))}>
                 {t("checkIn")}
               </Button>
               <Button
@@ -380,7 +375,13 @@ export function FileBar({
             </>
           )}
           {file.status === "in_workflow" && (
-            <Button size="xs" variant="default" component={Link} {...NEW_TAB} href="/workflow/">
+            <Button
+              size="xs"
+              variant="default"
+              component={Link}
+              {...NEW_TAB}
+              href={file.job ? `/workflow/?job=${file.job.id}` : "/workflow/"}
+            >
               {t("toWorkflow")}
             </Button>
           )}

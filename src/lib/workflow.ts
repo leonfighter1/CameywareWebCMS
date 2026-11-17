@@ -73,6 +73,8 @@ export type FileInfo = FileRow & {
   busy: boolean;
   /** Its check-in, while in the workflow. */
   checkin?: { id: number; message: string; author: string; at: string };
+  /** The job it is in (S7), while in the workflow. */
+  job?: { id: number; name: string; ticket: string };
   /** When its working copy was saved last, and by whom. */
   at: string;
   by: string;
@@ -91,6 +93,14 @@ export async function files(db: Pg): Promise<FileInfo[]> {
     `select id, message, author, created_at from checkins where id in (select checkin_id from items where checkin_id is not null)`,
   );
   const checkins = new Map(rows.map((c) => [Number(c.id), c]));
+  const jobs = new Map(
+    (
+      await db.query<{ kind: string; id: string; job_id: number; name: string; ticket: string }>(
+        `select f.kind, f.id, f.job_id, j.name, j.ticket from job_files f join jobs j on j.id = f.job_id
+          where j.step not in ('done', 'terminated')`,
+      )
+    ).rows.map((r) => [`${r.kind}:${r.id}`, { id: Number(r.job_id), name: r.name, ticket: r.ticket }]),
+  );
   const out: FileInfo[] = [];
   for (const [key, f] of states) {
     const w = work.get(key);
@@ -102,6 +112,7 @@ export async function files(db: Pg): Promise<FileInfo[]> {
       change: changeOf(w, prod.get(key)),
       busy: busy.has(key),
       checkin: c && { id: Number(c.id), message: c.message, author: c.author, at: c.created_at },
+      job: f.status === "in_workflow" ? jobs.get(key) : undefined,
       at: w.at,
       by: w.by,
       deleted: w.deleted,
@@ -253,7 +264,7 @@ async function mustBeAt(db: Pg, items: Item[], stage: Stage) {
  * [items] with the new parts that wait at [stage] too (a page's new blocks, their new templates): a page never goes on
  * without them.
  */
-async function withTheirParts(db: Pg, items: Item[], stage: Stage, states: Map<string, FileRow>) {
+export async function withTheirParts(db: Pg, items: Item[], stage: Stage, states: Map<string, FileRow>) {
   const out = new Map(items.map((i) => [keyOf(i), i]));
   const queue = [...items];
   while (queue.length)
@@ -271,9 +282,16 @@ async function withTheirParts(db: Pg, items: Item[], stage: Stage, states: Map<s
  * 终止 (W1): back to whoever checked them in, checked out, their changes kept; the new parts checked in with them (a
  * page's new blocks, a block's new template) too.
  */
-export async function terminate(db: Pg, items: Item[]) {
+export async function terminate(db: Pg, items: Item[]): Promise<Item[]> {
   const states = await mustBeAt(db, items, "checked_in");
-  for (const i of await withTheirParts(db, items, "checked_in", states))
+  const moving = await withTheirParts(db, items, "checked_in", states);
+  await giveBack(db, moving);
+  return moving;
+}
+
+/** [items] out of the workflow: checked out again by whoever checked them in, their changes kept. */
+export async function giveBack(db: Db, items: Item[]) {
+  for (const i of items)
     await db.query(
       `update items set status = 'checked_out', stage = null, revision_id = null, checkin_id = null, since = now()
         where kind = $1 and id = $2`,
@@ -282,6 +300,8 @@ export async function terminate(db: Pg, items: Item[]) {
 }
 
 type Runner = (log: (s: string) => void) => Promise<void>;
+/** What else a step's success does, in the same go as moving its files (a job's step and history, jobs.ts). */
+type Also = (pg: Pg) => Promise<void>;
 const inList = (items: Item[]) => {
   const keys = new Set(items.map(keyOf));
   return (f: FileRow) => keys.has(keyOf(f));
@@ -297,7 +317,7 @@ async function moveFrom(db: Pg, items: Item[], stage: Stage, set: string) {
 }
 
 /** 推到预览站: [items] at 已签入 built into preview with production and what is there already; at 预览站 once built. */
-export async function toPreview(db: Pg, items: Item[], by: string, note = "", runner?: Runner) {
+export async function toPreview(db: Pg, items: Item[], by: string, note = "", runner?: Runner, also?: Also) {
   const states = await mustBeAt(db, items, "checked_in");
   const moving = await withTheirParts(db, items, "checked_in", states);
   const chosen = inList(moving);
@@ -306,7 +326,10 @@ export async function toPreview(db: Pg, items: Item[], by: string, note = "", ru
     action: "preview",
     items: moving,
     runner,
-    onSuccess: (pg) => moveFrom(pg, moving, "checked_in", `stage = 'preview'`),
+    onSuccess: async (pg) => {
+      await moveFrom(pg, moving, "checked_in", `stage = 'preview'`);
+      await also?.(pg);
+    },
   });
   return { release, deployment: id, items: moving, done };
 }
@@ -315,7 +338,7 @@ export async function toPreview(db: Pg, items: Item[], by: string, note = "", ru
  * 退回签入 (W2): preview built again without [items] and the new parts that went there with them; at 已签入 again once
  * built, still locked.
  */
-export async function backToCheckIn(db: Pg, items: Item[], by: string, runner?: Runner) {
+export async function backToCheckIn(db: Pg, items: Item[], by: string, runner?: Runner, also?: Also) {
   const states = await mustBeAt(db, items, "preview");
   const moving = await withTheirParts(db, items, "preview", states);
   const leaving = inList(moving);
@@ -324,7 +347,10 @@ export async function backToCheckIn(db: Pg, items: Item[], by: string, runner?: 
     action: "back",
     items: moving,
     runner,
-    onSuccess: (pg) => moveFrom(pg, moving, "preview", `stage = 'checked_in'`),
+    onSuccess: async (pg) => {
+      await moveFrom(pg, moving, "preview", `stage = 'checked_in'`);
+      await also?.(pg);
+    },
   });
   return { release, deployment: id, items: moving, done };
 }
@@ -333,7 +359,14 @@ export async function backToCheckIn(db: Pg, items: Item[], by: string, runner?: 
  * 推到正式站: production's files with [items] (at 预览站) alone, committed and pushed; once pushed each is production's
  * version, nobody's. The other files at 预览站 stay there: preview's versions reach no further than preview.
  */
-export async function toProduction(db: Pg, items: Item[], by: string, note = "", runner?: Runner) {
+export async function toProduction(
+  db: Pg,
+  items: Item[],
+  by: string,
+  note = "",
+  runner?: Runner,
+  also?: Also,
+) {
   const states = await mustBeAt(db, items, "preview");
   const moving = await withTheirParts(db, items, "preview", states);
   const release = await createRelease(db, by, note, inList(moving));
@@ -341,14 +374,16 @@ export async function toProduction(db: Pg, items: Item[], by: string, note = "",
     action: "production",
     items: moving,
     runner,
-    onSuccess: (pg) =>
-      moveFrom(
+    onSuccess: async (pg) => {
+      await moveFrom(
         pg,
         moving,
         "preview",
         `prod_revision_id = revision_id, status = 'available', owner = null, stage = null, revision_id = null,
          checkin_id = null`,
-      ),
+      );
+      await also?.(pg);
+    },
   });
   return { release, deployment: id, items: moving, done };
 }

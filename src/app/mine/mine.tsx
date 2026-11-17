@@ -5,18 +5,21 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FileTable, keyOf } from "@/components/file-table";
-import { checkInModal, confirm } from "@/components/files";
-import { report } from "@/components/result";
-import type { FileView } from "@/lib/present";
-import { discardAction, putBackAction } from "../actions";
+import { confirm, jobModal } from "@/components/files";
+import { JobTable } from "@/components/job-table";
 import { NEW_TAB } from "@/components/links";
+import { report } from "@/components/result";
+import type { FileView, JobView } from "@/lib/present";
+import { discardAction, putBackAction } from "../actions";
 
-export function Mine({ me, held, inWorkflow }: { me: string; held: FileView[]; inWorkflow: FileView[] }) {
+export function Mine({ me, held, jobs }: { me: string; held: FileView[]; jobs: JobView[] }) {
   const t = useTranslations("mine");
   const tf = useTranslations("files");
   const router = useRouter();
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const chosen = held.filter((f) => picked.has(keyOf(f))).map((f) => ({ kind: f.kind, id: f.id }));
+  const chosen = held
+    .filter((f) => picked.has(keyOf(f)))
+    .map((f) => ({ kind: f.kind, id: f.id, label: f.label }));
   const done = (ok: boolean) => {
     if (!ok) return;
     setPicked(new Set());
@@ -41,7 +44,8 @@ export function Mine({ me, held, inWorkflow }: { me: string; held: FileView[]; i
             <Button
               size="xs"
               disabled={!chosen.length}
-              onClick={() => checkInModal(chosen, tf, () => done(true))}
+              onClick={() => jobModal(chosen, tf, () => done(true))}
+              data-testid="to-job"
             >
               {t("checkIn", { n: chosen.length })}
             </Button>
@@ -88,25 +92,13 @@ export function Mine({ me, held, inWorkflow }: { me: string; held: FileView[]; i
       <Card withBorder>
         <Group justify="space-between" mb="sm">
           <Title order={2} fz={18}>
-            {t("inWorkflow", { n: inWorkflow.length })}
+            {t("jobs", { n: jobs.length })}
           </Title>
           <Button size="xs" variant="default" component={Link} {...NEW_TAB} href="/workflow/">
             {tf("toWorkflow")}
           </Button>
         </Group>
-        <FileTable
-          files={inWorkflow}
-          me={me}
-          extra={{
-            title: t("checkin"),
-            cell: (f) => (
-              <Text size="xs">
-                {f.checkin ? `#${f.checkin.id} · ${f.checkin.at} · ${f.checkin.message}` : ""}
-              </Text>
-            ),
-          }}
-          empty={t("noneInWorkflow")}
-        />
+        <JobTable jobs={jobs} empty={t("noJobs")} />
       </Card>
     </Stack>
   );

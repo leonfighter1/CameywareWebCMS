@@ -1,40 +1,76 @@
 import { Frame } from "@/components/frame";
+import { keyOf } from "@/lib/files";
 import { canPublish } from "@/lib/auth";
 import { previewBase, productionBase } from "@/lib/hosts";
+import { getJob, jobDeployments, jobEvents, jobItems, jobPage, type Step, STEPS } from "@/lib/jobs";
 import { ADDRESSES } from "@/lib/paths";
-import { fileView, when } from "@/lib/present";
+import { fileView, jobView, when } from "@/lib/present";
 import { deploymentPage, deployments, environments, readLog } from "@/lib/releases";
 import { database, host, language, requireUser } from "@/lib/server";
 import { files } from "@/lib/workflow";
-import { Board } from "./board";
+import { JobManager } from "./jobs";
+
+const PER = 20;
 
 /**
- * 工作流 (the owner, 2026-11-15, on the 发布 page: 「我们可以添加一个退回签入step, 在签入的step我们也可以添加terminate
- * workflow的功能」; S6: 「workflow只针对可查找的workflow进度，为了页面干净，可以显示当前的deployment进度，至于以往的log
- * 可以又专门的地方查看」): the files at 已签入 and at 预览站, each step on the ones you pick, and the deployment running
- * now (none: the last one, its log a link). Every deployment and every release are on /deployments.
+ * 工作流 as Bell's Workflow Job Manager (S7; the owner, 2026-11-16: 「workflow可以有多个 … workflow必须实例化」; before:
+ * 「workflow只针对可查找的workflow进度 … 可以显示当前的deployment进度」): the job picked (?job=) with its steps and what
+ * can be done now, the jobs (mine or all, by step, found, in pages), its files and history, and the deployment running
+ * now. Every deployment and every release are on /deployments.
  */
-export default async function WorkflowPage() {
+export default async function WorkflowPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ job?: string; scope?: string; step?: string; q?: string; page?: string }>;
+}) {
+  const sp = await searchParams;
   const user = await requireUser();
   const lang = await language();
   const pg = await database();
-  const [all, envs, recent, { total }] = await Promise.all([
+  const scope = sp.scope === "all" ? "all" : "mine";
+  const step: Step | "open" | undefined =
+    sp.step === "all" ? undefined : STEPS.includes(sp.step as Step) ? (sp.step as Step) : "open";
+  const page = Math.max(1, Number(sp.page) || 1);
+  const list = await jobPage(pg, {
+    page,
+    size: PER,
+    author: scope === "mine" ? user.login : undefined,
+    step,
+    q: sp.q,
+  });
+  const chosen = Number(sp.job) || list.rows[0]?.id;
+  const job = chosen ? await getJob(pg, chosen) : undefined;
+  const [all, envs, recent, { total }, events, items, runs] = await Promise.all([
     files(pg),
     environments(pg),
     // At most one runs per site: the latest few hold them.
     deployments(pg, 5),
     deploymentPage(pg, { page: 1, size: 0 }),
+    job ? jobEvents(pg, job.id) : [],
+    job ? jobItems(pg, job.id) : [],
+    job ? jobDeployments(pg, job.id) : [],
   ]);
-  const inWorkflow = all.filter((f) => f.status === "in_workflow");
+  const byKey = new Map(all.map((f) => [keyOf(f), f]));
   const running = recent.filter((d) => d.status === "running");
   const lang2 = lang === "en" ? "en" : "zh";
   return (
     <Frame>
-      <Board
+      <JobManager
         me={user.login}
         canPublish={canPublish(user.role)}
-        checkedIn={inWorkflow.filter((f) => f.stage === "checked_in").map((f) => fileView(f, lang))}
-        onPreview={inWorkflow.filter((f) => f.stage === "preview").map((f) => fileView(f, lang))}
+        job={job && jobView(job, lang)}
+        files={items.flatMap((i) => {
+          const f = byKey.get(keyOf(i));
+          return f ? [fileView(f, lang)] : [];
+        })}
+        events={events.map((e) => ({
+          ...e,
+          at: when(e.at, lang),
+          note: e.action === "scheduled" ? when(e.note, lang) : e.note,
+        }))}
+        jobRuns={runs.map((d) => ({ ...d, at: when(d.started_at, lang) }))}
+        list={{ rows: list.rows.map((j) => jobView(j, lang)), total: list.total, page, per: PER }}
+        filters={{ scope, step: sp.step === "all" ? "all" : (step ?? "open"), q: sp.q ?? "" }}
         envs={{
           preview: { release: envs.preview.release, at: when(envs.preview.at, lang), by: envs.preview.by },
           production: {

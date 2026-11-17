@@ -2,6 +2,20 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (g): v7.0.0, S7 (workflow jobs, approval, a time, the bell)
+
+- The owner's requests and answers are in docs/tech-plan.md (S7). `jobs.ts` puts jobs on top of workflow.ts's file
+  steps: create (checkIn, then job_files from its check-in), add (anyone's job at 进行中; the files stay the adder's),
+  remove (terminate at 进行中; at 预览站 a backToCheckIn whose `also` gives them back), split, terminate, preview,
+  back, submit, approve, reject, publish now or at a time, cancel; `runDue` for the tick; `claim` moves a page's new
+  part into the job that took it along; the bell from job_events (seen per login). Migration 7 makes jobs of the
+  check-ins in the workflow (`job-migration.ts`, apart from jobs.ts so db.ts imports nothing of the workflow).
+- Screens: the 工作流 page is a job manager (`workflow/jobs.tsx`; board.tsx gone), `job-table.tsx` (also in 我的文件),
+  `job-form.tsx` through `jobModal` (was checkInModal: the file bar, the explorer, 我的文件, split), `bell.tsx` in the
+  shell with its count (the owner asked mid-way). The old file-by-file workflow actions are gone.
+- The walk ran on a copy with its own website clone pushing to a bare repository (rule 16; rule 17: the clone needs its
+  own npm ci). The owner's check-ins webfl5019 and webfl1234 became jobs #1 and #2 on the real CMS.
+
 ## 2026-11-16 (f): v6.1.0 (the pages that use a block, Save and Preview at the top, the favicon)
 
 - The owner's requests are in docs/tech-plan.md (v6.1.0, after S6). `pageUses` (present.ts) gives a block's pages,

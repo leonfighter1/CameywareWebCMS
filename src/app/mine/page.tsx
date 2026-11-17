@@ -1,24 +1,31 @@
 import { Frame } from "@/components/frame";
-import { fileView } from "@/lib/present";
+import { jobPage } from "@/lib/jobs";
+import { fileView, jobView } from "@/lib/present";
 import { database, language, requireUser } from "@/lib/server";
 import { files } from "@/lib/workflow";
 import { Mine } from "./mine";
 
 /**
  * 我的文件 (the owner, 2026-11-15: 「用户可以查看当下哪些文件在他们的名下，然后可以多个文件一同签入，当然也可以移除相关
- * 文件」): the files checked out by you, to check in together, put back or discard; and yours in the workflow.
+ * 文件」; S7: 「我们需要可以知道自己有哪些文件可以添加到workflow里去」): the files checked out by you, to put into a job of
+ * the workflow (a new one or one of yours at 进行中), put back or discard; and your jobs not ended.
  */
 export default async function MinePage() {
   const user = await requireUser();
   const lang = await language();
-  const all = await files(await database());
-  const ofMine = all.filter((f) => f.owner === user.login);
+  const pg = await database();
+  const [all, jobs] = await Promise.all([
+    files(pg),
+    jobPage(pg, { page: 1, size: 200, author: user.login, step: "open" }),
+  ]);
   return (
     <Frame>
       <Mine
         me={user.login}
-        held={ofMine.filter((f) => f.status === "checked_out").map((f) => fileView(f, lang))}
-        inWorkflow={ofMine.filter((f) => f.status === "in_workflow").map((f) => fileView(f, lang))}
+        held={all
+          .filter((f) => f.owner === user.login && f.status === "checked_out")
+          .map((f) => fileView(f, lang))}
+        jobs={jobs.rows.map((j) => jobView(j, lang))}
       />
     </Frame>
   );

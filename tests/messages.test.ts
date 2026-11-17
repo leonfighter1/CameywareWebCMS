@@ -70,8 +70,8 @@ it("every message reads in both languages (its placeholders and plurals well for
   }
   const t = createTranslator({ locale: "en", messages: en }) as unknown as (k: string, v: object) => string;
   expect([t("files.checkInTitle", { n: 1 }), t("files.checkInTitle", { n: 3 })]).toEqual([
-    "Check in 1 file",
-    "Check in 3 files",
+    "Into the workflow (1 file)",
+    "Into the workflow (3 files)",
   ]);
 });
 

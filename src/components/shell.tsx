@@ -34,7 +34,9 @@ import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { setLanguageAction, signOutAction } from "@/app/actions";
+import type { Bell as BellData } from "@/lib/jobs";
 import type { Lang } from "@/lib/words";
+import { Bell } from "./bell";
 
 const NAV = [
   { href: "/", key: "explorer", icon: IconFolders },
@@ -75,13 +77,16 @@ export function Shell({
   workflow,
   preview,
   production,
+  bell,
   children,
 }: {
   user: string;
   role: string;
   lang: Lang;
   mine: number;
+  /** The jobs not ended (S7). */
   workflow: number;
+  bell: BellData;
   preview: string;
   production: string;
   children: ReactNode;
@@ -160,6 +165,7 @@ export function Shell({
             <Group visibleFrom="sm">
               <LanguageSwitch lang={lang} />
             </Group>
+            <Bell initial={bell} />
             <Menu position="bottom-end">
               <Menu.Target>
                 <Button

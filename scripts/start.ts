@@ -3,7 +3,8 @@
  *   1. builds the CMS (next build) when it has no build yet, or with --build;
  *   2. starts its editors and API (cms-edit, port 8790) and its preview (cms-preview, port 8791), one key between them
  *      made now (CMS_PREVIEW_KEY), so only the preview's server reads the drafts;
- *   3. builds the CMS's preview of the website when there is none yet (a few minutes, the first time).
+ *   3. builds the CMS's preview of the website when there is none yet (a few minutes, the first time);
+ *   4. asks each minute for the workflow jobs whose publishing time has come (S7, /api/internal/tick).
  * The tunnel's two hostnames (Cloudflare) point at these ports; Ctrl+C stops both.
  */
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -62,6 +63,13 @@ console.log(`\n  CMS central page: ${edit}/  (${addresses.company.cmsEdit})`);
 console.log(
   `  CMS preview:      http://${host}:${addresses.local.cmsPreviewPort}/  (${addresses.company.cmsPreview})\n`,
 );
+// The jobs set to publish at a time (S7): asked each minute while the CMS runs.
+setInterval(() => {
+  void fetch(`${edit}/api/internal/tick`, {
+    method: "POST",
+    headers: { "x-cms-preview-key": env.CMS_PREVIEW_KEY },
+  }).catch(() => {});
+}, 60_000);
 if (!existsSync(join(deployDir("cms", "site"), "index.html"))) {
   console.log("building the CMS preview of the website (a few minutes)…");
   await fetch(`${edit}/api/internal/build-cms-site`, {

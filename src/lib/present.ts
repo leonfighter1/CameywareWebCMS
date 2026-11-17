@@ -4,6 +4,7 @@
  */
 import type { Field } from "./catalog";
 import { labelIn } from "./labels";
+import type { Bell, Job } from "./jobs";
 import type { PageRow } from "./store";
 import type { FileInfo, Version } from "./workflow";
 import type { Lang } from "./words";
@@ -24,6 +25,8 @@ export type FileView = {
   change?: FileInfo["change"];
   busy: boolean;
   checkin?: { id: number; message: string; author: string; at: string };
+  /** The job it is in (S7), while in the workflow. */
+  job?: { id: number; name: string; ticket: string };
   /** When its working copy was saved last (as [lang] writes it, and as a time to sort by), and by whom. */
   at: string;
   atTime: number;
@@ -44,6 +47,7 @@ export const fileView = (f: FileInfo, lang: Lang): FileView => ({
   change: f.change,
   busy: f.busy,
   checkin: f.checkin && { ...f.checkin, at: when(f.checkin.at, lang) },
+  job: f.job,
   at: when(f.at, lang),
   atTime: new Date(f.at).getTime(),
   by: f.by,
@@ -111,6 +115,34 @@ export function pageUses(
     ];
   });
 }
+
+/** A workflow job as the lists show it (S7): its dates as [lang] writes them. */
+export type JobView = Omit<Job, "created_at" | "updated_at" | "scheduled_at"> & {
+  created: string;
+  at: string;
+  scheduled: string;
+};
+
+export const jobView = (j: Job, lang: Lang): JobView => {
+  const { created_at, updated_at, scheduled_at, ...rest } = j;
+  return {
+    ...rest,
+    created: when(created_at, lang),
+    at: when(updated_at, lang),
+    scheduled: when(scheduled_at, lang),
+  };
+};
+
+/** The bell (S7) with its times as [lang] writes them. */
+export const bellView = (b: Bell, lang: Lang): Bell => ({
+  approvals: b.approvals.map((a) => ({ ...a, at: when(a.at, lang) })),
+  news: b.news.map((n) => ({
+    ...n,
+    at: when(n.at, lang),
+    note: n.action === "scheduled" ? when(n.note, lang) : n.note,
+  })),
+  unread: b.unread,
+});
 
 /** An editor's link to a file. */
 export const fileHref = (kind: FileInfo["kind"], id: string) =>

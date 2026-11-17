@@ -22,8 +22,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 14. From PowerShell run npx next build and then npm start (or use Git Bash for npm start -- --build); check the log says 'building the CMS' before walking
 15. A Mantine Modal opened over another: the one underneath turns closeOnEscape off while it is open (or both go in a Modal.Stack); never rely on stopPropagation for Esc
 16. Run a browser walk that changes files on a copy of the CMS (CMS_DATA_DIR copy, its own port), never on the CMS the owner uses; read the real one only
+17. A walk copy of the website (SITE_REPO clone from a local bare repository) gets its own npm ci, never a junction to the real node_modules; remove a junction with cmd rmdir, never rm -rf
 
 ## Log
+
+### 2026-11-16: A walk copy's website linked to the real node_modules failed to build
+- **Symptom:** The copy's preview build: Turbopack 'Could not find the Next.js package (next/package.json)' from the clone's .cms-tree
+- **Root cause:** node_modules in the clone was a junction to C:\Cameyware\node_modules; Turbopack resolves it to its real path, outside the root (the clone), and refuses it
+- **Fix:** The clone got its own install (npm ci --prefer-offline --ignore-scripts); the junction removed with cmd rmdir, which leaves its target alone
+- **Rule:** A walk copy of the website (SITE_REPO clone from a local bare repository) gets its own npm ci, never a junction to the real node_modules; remove a junction with cmd rmdir, never rm -rf (Rule 17)
 
 ### 2026-11-16: A browser walk as admin on the running CMS mixed into the owner's check-in
 - **Symptom:** The walk took /works/lumingmijie/delete-account/ as admin and stopped on a failure; the owner, signed in as the same admin, checked in and pushed to 预览站 with that page among their files

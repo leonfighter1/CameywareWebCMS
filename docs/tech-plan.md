@@ -265,7 +265,7 @@ an icon of the CMS's own.
 | WP36 | `PreviewButton` (components/preview.tsx); 保存 and 预览 at the top of the block's and the global's editors; the block's frame gone        |
 | WP37 | `src/app/icon.svg`: the company's mark (the website's) in the CMS's red, with a pencil; light and dark                                    |
 
-## S7 Workflow jobs (planned; big: CMS v7.0.0)
+## S7 Workflow jobs (big: CMS v7.0.0)
 
 **The owner (2026-11-16)**, with a screenshot of Bell's Workflow Job Manager (its steps Work in Progress, Deploy to
 Preview1, Deploy to Preview2, Submit for Approval, Approve, Publish, Scheduled, Completed, with Bypass Preview1/2,
@@ -284,15 +284,32 @@ still in progress), and each job moves on its own: to the previews, to productio
 ticket (batch 1, 2, 3). A file is in one job at a time. Today's single workflow (已签入 → 预览站 → 正式站, check-ins with
 a message) becomes these jobs; its check-ins map onto them.
 
-Draft WPs, to be fixed with the owner's answers (approval, scheduling, ticket, email):
+**The owner's answers (2026-11-16):** approval (「要不要"提交审批 → 批准 / 退回"这一步？…让网站编辑提交、管理员批准后发布」)
+「可以」; a time for production 「可以设置也可以跳过」; the ticket 「可以不填」; mail 「不要 只需要相关人员登陆时右上角有一个小铃铛的
+notification 提醒用户workflow approve」. Then, while it was built:
 
-| WP   | What                                                                                                                                        |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| WP38 | Jobs in the database (ticket, name, step, creator, approver, dates; a file's job), today's check-ins and stages carried over                |
-| WP39 | 我的文件: the files you can add; 新建任务 (ticket, name) from the chosen ones or 加到任务; a job's files grouped by kind, with their states |
-| WP40 | A job's steps and buttons (the bar of steps, return, terminate); preview and production per job (production: only that job's files)         |
-| WP41 | In a job: remove the chosen files, split them into a new job, export the job; the list of jobs (mine / all, by step, search, pages)         |
-| WP42 | Approval and scheduling, as the owner decides                                                                                               |
+> notification bell需要提醒用户有多少个notifications。
+
+> 还有个功能需要完成，当checkout file需要添加workflow的时候，可以增加这样的功能，可以添加到已有的workflow也可以添加到别人的
+> workflow里，默认是自己已有的，也可以新建workflow. 第三个tab是添加到其他人的workflow。 (with Bell's Publish dialog: Selected
+> Contents, then the tabs My Workflows, Create New Workflow, Add to Workflow)
+
+> 还可以通过选择不同的file新建新的 workflow 也可以移除workflow。 (with Bell's Split selected items to a new Job: the job's
+> files with those moving in bold; Remove selected from Job)
+
+**Built as:** the steps 进行中 → 预览站 → 待审批 → 已批准 (→ 已定时) → 已完成, and 已终止. The job's author or 管理员 and up
+move it; 管理员 and up alone approve, send back (with why) and publish, now or at a time; the CMS publishes a job whose
+time has come (start.ts asks /api/internal/tick each minute). No mail: a bell with a count. One preview site still: a
+job at 预览站 or later keeps its files there (Bell's two previews are our CMS preview and 预览站; no bypass). The file
+steps of workflow.ts stay underneath, a job's step running with its files' move (`also`).
+
+| WP   | What                                                                                                                                                       |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP38 | Migration 7: jobs, job_files (what a job held, kept), job_events (its history), seen (the bell); deployments.job_id; today's check-ins become jobs         |
+| WP39 | `jobs.ts`: create, add (to anyone's job at 进行中), remove (at 进行中, or at 预览站 by a preview build), split, terminate; a page's new part joins its job |
+| WP40 | Steps: preview, back, submit, approve, reject, publish now or at a time, cancel the time, the scheduler (`runDue`); a failed build is an event             |
+| WP41 | The 工作流 page as a job manager (the job's step bar and buttons, the list with filters and pages, files by category, history, export); 我的文件's jobs    |
+| WP42 | 加入工作流's dialog (selected contents; 我的任务 / 新建任务 / 加到其他人的任务), the split dialog, the bell with its count                                 |
 
 ## Status
 
@@ -335,11 +352,30 @@ Draft WPs, to be fixed with the owner's answers (approval, scheduling, ticket, e
 | WP35 | done                                         | v6.1.0                 |
 | WP36 | done                                         | v6.1.0                 |
 | WP37 | done                                         | v6.1.0                 |
-| WP38 | planned (S7: waits for the owner's answers)  |                        |
-| WP39 | planned                                      |                        |
-| WP40 | planned                                      |                        |
-| WP41 | planned                                      |                        |
-| WP42 | planned                                      |                        |
+| WP38 | done                                         | v7.0.0                 |
+| WP39 | done                                         | v7.0.0                 |
+| WP40 | done                                         | v7.0.0                 |
+| WP41 | done                                         | v7.0.0                 |
+| WP42 | done                                         | v7.0.0                 |
+
+## 阶段总结 S7 (v7.0.0, 2026-11-16)
+
+1. **Delivered** (all in v7.0.0): WP38 migration 7 and the carrying over (`job-migration.ts`: one job per check-in and
+   step; the owner's two check-ins became #1 webfl5019 and #2 webfl1234 at 预览站); WP39–WP40 `jobs.ts` on top of
+   workflow.ts (whose deploying steps take `also`, `terminate` returns what it gave back, `giveBack` is its own,
+   `withTheirParts` is shared); WP41 the job manager (`workflow/jobs.tsx`, `job-table.tsx`), 我的文件's jobs, the export
+   (`/api/jobs/[id]/export`); WP42 the dialog (`job-form.tsx` through `jobModal`), the split view, the bell
+   (`bell.tsx`, `bellView`), the tick (`/api/internal/tick`).
+2. **Numbers:** 59 tests (9 new in tests/jobs.test.ts); harness PASS; a browser walk on a copy of the CMS with its own
+   database and its own clone of the website pushing to a local bare repository (two real builds: preview and
+   production).
+3. **Against the plan:** approval, a time and a bell as the owner answered; adding to someone else's job and removing
+   at 预览站 came in while it was built (the owner's two messages with Bell's dialogs). Bell's Bypass Preview and Email
+   Workflow are left out (one preview site; no mail). The old file-by-file workflow actions are gone: production is
+   reached through an approved job alone.
+4. **Mistakes:** 15 (Esc over a dialog, from v6.1.0, used again here), 16 (walks on a copy), 17 (a copy's website needs
+   its own node_modules: Turbopack doesn't follow a junction out of its root).
+5. **Next:** the owner's review of the job manager; a French speaker reads /fr/.
 
 ## 阶段总结 S6 (v6.0.0, 2026-11-16)
 

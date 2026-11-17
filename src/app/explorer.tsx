@@ -45,7 +45,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { checkInModal, confirm, isMine, StateBadges } from "@/components/files";
+import { confirm, isMine, jobModal, StateBadges } from "@/components/files";
 import { report } from "@/components/result";
 import type { FileView } from "@/lib/present";
 import {
@@ -523,7 +523,13 @@ function FileList({
           size="xs"
           variant="light"
           disabled={!mine.length}
-          onClick={() => checkInModal(items(mine), tf, () => done(true))}
+          onClick={() =>
+            jobModal(
+              mine.map((f) => ({ kind: f.kind, id: f.id, label: f.label })),
+              tf,
+              () => done(true),
+            )
+          }
         >
           {t("withCount", { label: tf("checkIn"), n: mine.length })}
         </Button>

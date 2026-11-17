@@ -7,6 +7,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { bundlesFromTexts } from "./bundles";
+import { jobsFromCheckins } from "./job-migration";
 import { pagesToLayouts } from "./pages";
 
 export type Db = PGlite | Transaction;
@@ -201,6 +202,43 @@ export const MIGRATIONS: (string | ((tx: Transaction) => Promise<void>))[] = [
    alter table items drop constraint items_kind_check;
    alter table items add constraint items_kind_check
      check (kind in ('page', 'component', 'global', 'bundle', 'template', 'layout', 'code'));`,
+  // S7 (the owner, 2026-11-16, with Bell's Workflow Job Manager: 「workflow可以有多个 … workflow必须实例化，可以把自己
+  // checkout file都新建不同的workflow ticket去deploy」): a workflow is a job, its own files at its own step (jobs.ts).
+  // job_files is what each job held (kept when it ends); job_events its history, which the bell reads (seen: the last
+  // one each person has seen). The files in the workflow now become jobs, one per check-in and step.
+  async (tx: Transaction) => {
+    await tx.exec(`
+      create table jobs (
+        id bigint primary key,
+        ticket text not null default '',
+        name text not null,
+        author text not null,
+        step text not null
+          check (step in ('progress', 'preview', 'submitted', 'approved', 'scheduled', 'done', 'terminated')),
+        approver text,
+        scheduled_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+      create table job_files (
+        job_id bigint not null references jobs (id),
+        kind text not null,
+        id text not null,
+        primary key (job_id, kind, id)
+      );
+      create table job_events (
+        id bigserial primary key,
+        job_id bigint not null references jobs (id),
+        action text not null,
+        by text not null,
+        note text not null default '',
+        at timestamptz not null default now()
+      );
+      create index job_events_job on job_events (job_id, id);
+      create table seen (login text primary key, event_id bigint not null default 0);
+      alter table deployments add column job_id bigint;`);
+    await jobsFromCheckins(tx);
+  },
 ];
 
 async function migrate(db: PGlite) {
