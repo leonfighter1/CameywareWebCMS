@@ -2,6 +2,12 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (i): v8.0.1 (no 404 after discarding a new file that was deleted)
+
+- The owner: a new template deleted and then discarded showed a 404. The file bar left the page only for change "new";
+  a new file marked deleted has none. It now leaves when `file.fresh` (no production version: what discard forgets).
+  `app/not-found.tsx` gives a missing file the CMS's own page. Mistake 18.
+
 ## 2026-11-16 (h): v8.0.0, S8 (preview without a build on each push; the lightbox)
 
 - The owner asked how to avoid the build on each push; offered a live preview or queued builds, they chose both, with a

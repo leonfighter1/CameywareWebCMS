@@ -362,10 +362,10 @@ export function FileBar({
                     run: () =>
                       step(async () => {
                         const ok = report(await discardAction(item), t("discarded"));
-                        // A file never published is gone: back to its folder in the explorer.
-                        if (ok && file.change === "new")
-                          router.push(`/?at=${encodeURIComponent(FOLDERS[file.kind])}`);
-                        return ok && file.change !== "new";
+                        // A file production never had is gone, new or new and deleted (its change is then none):
+                        // back to its folder in the explorer.
+                        if (ok && file.fresh) router.push(`/?at=${encodeURIComponent(FOLDERS[file.kind])}`);
+                        return ok && !file.fresh;
                       }),
                   })
                 }

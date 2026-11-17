@@ -929,5 +929,11 @@
     "newFromBuiltin": "New layout from this one",
     "created": "Layout created (yours)",
     "create": "Create"
+  },
+  "notFound": {
+    "title": "This file isn't here any more",
+    "body": "It may just have been discarded (a file never published is gone once discarded), or deleted. Look for it in the content tree, or see the files you hold.",
+    "explorer": "Back to the content tree",
+    "mine": "My files"
   }
 }

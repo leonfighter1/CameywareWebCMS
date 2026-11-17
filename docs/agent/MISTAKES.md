@@ -23,8 +23,15 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 15. A Mantine Modal opened over another: the one underneath turns closeOnEscape off while it is open (or both go in a Modal.Stack); never rely on stopPropagation for Esc
 16. Run a browser walk that changes files on a copy of the CMS (CMS_DATA_DIR copy, its own port), never on the CMS the owner uses; read the real one only
 17. A walk copy of the website (SITE_REPO clone from a local bare repository) gets its own npm ci, never a junction to the real node_modules; remove a junction with cmd rmdir, never rm -rf
+18. Decide whether discard removes a file by file.fresh (no production version), never by its change; every missing file gets the CMS's not-found page
 
 ## Log
+
+### 2026-11-16: A new template deleted then discarded showed a 404
+- **Symptom:** Discard on a never-published template that had been deleted reloaded its page: 404 This page could not be found
+- **Root cause:** The file bar left the page only when change was 'new'; a new file marked deleted has no change (changeOf), yet discard forgets it
+- **Fix:** The bar leaves for its folder when the file is fresh (production has no version: what discard forgets); app/not-found.tsx says a file is gone in the CMS's frame
+- **Rule:** Decide whether discard removes a file by file.fresh (no production version), never by its change; every missing file gets the CMS's not-found page (Rule 18)
 
 ### 2026-11-16: A walk copy's website linked to the real node_modules failed to build
 - **Symptom:** The copy's preview build: Turbopack 'Could not find the Next.js package (next/package.json)' from the clone's .cms-tree
