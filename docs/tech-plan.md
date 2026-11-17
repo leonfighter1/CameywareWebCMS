@@ -311,6 +311,32 @@ steps of workflow.ts stay underneath, a job's step running with its files' move 
 | WP41 | The 工作流 page as a job manager (the job's step bar and buttons, the list with filters and pages, files by category, history, export); 我的文件's jobs    |
 | WP42 | 加入工作流's dialog (selected contents; 我的任务 / 新建任务 / 加到其他人的任务), the split dialog, the bell with its count                                 |
 
+## S8 Preview without a build on each push (big: CMS v8.0.0, website v2.5.0)
+
+**The owner (2026-11-16):**
+
+> when to push to preview or return to progress, it has a build process automatically, how can we avoid it or have a
+> better experience on it
+
+then, on the two ways put to them (a live preview with a build only when the code changes; or builds kept but queued,
+the job moving on at once, the bell when built):
+
+> 我觉得可以combine，如果显示在构件中的时候需要有个light box或者什么的，stop user's change
+
+**Built as:** preview.cameyware.com is the website built live (NEXT_PUBLIC_CMS=preview): its pages read
+`cms-content.json` beside the build. A push, a send-back or a removal at 预览站 replaces that file when the build's code
+(the website's main and the built-in templates the release carries) is the same and the build has every page; else one
+build, which records what it was made of (`cms-build.json`). While a job's deployment runs, a lightbox covers its page
+(its progress, the log), closed by the end alone, which it says. Queueing builds was left out: content no longer builds,
+so only a code change keeps the preview site busy for a minute or two.
+
+| WP   | What                                                                                                                         |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------- |
+| WP43 | Website v2.5.0: `LIVE_MODE` (on or preview) reads the content live; preview reads `/cms-content.json`, no bar, no Edit       |
+| WP44 | `deploy.ts` toPreview: the content file alone when `liveFits` (same code key, no page the build lacks); else a live build    |
+| WP45 | The lightbox on the job page while its deployment runs; done or failed said when it ends; texts say "updated", not "rebuilt" |
+| WP46 | 禄命秘解's npm run all builds the preview live and writes the content file                                                   |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -357,6 +383,22 @@ steps of workflow.ts stay underneath, a job's step running with its files' move 
 | WP40 | done                                         | v7.0.0                 |
 | WP41 | done                                         | v7.0.0                 |
 | WP42 | done                                         | v7.0.0                 |
+| WP43 | done                                         | website v2.5.0         |
+| WP44 | done                                         | v8.0.0                 |
+| WP45 | done                                         | v8.0.0                 |
+| WP46 | done                                         | 禄命秘解 (tooling)     |
+
+## 阶段总结 S8 (v8.0.0, 2026-11-16)
+
+1. **Delivered:** WP43 in website v2.5.0; WP44–WP45 in v8.0.0 (`liveFits`, `LIVE_CONTENT`, `LIVE_BUILD` in deploy.ts; the
+   lightbox in workflow/jobs.tsx); WP46 in 禄命秘解's scripts/public.ts.
+2. **Numbers:** 60 tests (1 new: tests/live.test.ts); harness PASS on both repositories (the website's with its build and
+   browser suite); a browser walk on a copy: the first push built once under the lightbox, the next push and a send-back
+   took seconds without a build, and the live preview page followed its content file.
+3. **Against the plan:** the owner chose to combine both ways; the queue of builds is left out (only code builds now).
+   Production is as it was: Cloudflare builds it; the CMS builds only when built-in templates change.
+4. **Mistakes:** none new; global rule 16 (a script with backslashes through a shell) met again and kept to.
+5. **Next:** the owner's review; a French speaker reads /fr/.
 
 ## 阶段总结 S7 (v7.0.0, 2026-11-16)
 

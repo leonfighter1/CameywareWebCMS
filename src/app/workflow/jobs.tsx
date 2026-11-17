@@ -12,6 +12,8 @@ import {
   Card,
   Code,
   Group,
+  Loader,
+  Modal,
   Pagination,
   SegmentedControl,
   Select,
@@ -24,6 +26,7 @@ import {
   Title,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
+import { notifications } from "@mantine/notifications";
 import {
   IconArrowBackUp,
   IconArrowRight,
@@ -40,7 +43,7 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileTable, keyOf } from "@/components/file-table";
 import { confirm, jobModal } from "@/components/files";
 import { JobTable, StepBadge } from "@/components/job-table";
@@ -265,6 +268,29 @@ export function JobManager({
     const timer = setInterval(() => router.refresh(), 3000);
     return () => clearInterval(timer);
   }, [running, router]);
+  /** The job's deployment running now: the lightbox over the page (the owner: 「light box … stop user's change」). */
+  const building = jobRuns.find((r) => r.status === "running");
+  const buildingLog = building ? (runs.find((r) => r.id === building.id)?.log ?? "") : "";
+  // Once it ends: said in a word, done or failed.
+  const watched = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (building) {
+      watched.current = building.id;
+      return;
+    }
+    const id = watched.current;
+    if (id === undefined) return;
+    watched.current = undefined;
+    const ended = jobRuns.find((r) => r.id === id);
+    if (ended?.status === "done") notifications.show({ color: "green", message: t("buildDone") });
+    else if (ended?.status === "failed")
+      notifications.show({
+        color: "red",
+        title: t("buildFailed"),
+        message: t("buildFailedHelp"),
+        autoClose: 12_000,
+      });
+  }, [building, jobRuns, t]);
   /** The page with [change] in its address (a filter, a page, the job picked). */
   const go = (change: Record<string, string | undefined>) => {
     const next = new URLSearchParams(params.toString());
@@ -497,6 +523,35 @@ export function JobManager({
 
   return (
     <Stack gap="lg">
+      <Modal
+        opened={!!building}
+        onClose={() => {}}
+        withCloseButton={false}
+        closeOnClickOutside={false}
+        closeOnEscape={false}
+        centered
+        size="lg"
+        title={
+          building &&
+          t(building.env === "preview" ? "buildingPreview" : "buildingProduction", { id: job?.id ?? 0 })
+        }
+        data-testid="job-building"
+      >
+        <Stack gap="sm">
+          <Group gap="sm" wrap="nowrap">
+            <Loader size="sm" />
+            <Text size="sm">{t("buildingBody")}</Text>
+          </Group>
+          <Code block style={{ maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap" }}>
+            {buildingLog.slice(-4000) || tw("noOutput")}
+          </Code>
+          {building && (
+            <Anchor component={Link} {...NEW_TAB} href={`/deployments/${building.id}`} size="sm">
+              {tw("log")}
+            </Anchor>
+          )}
+        </Stack>
+      </Modal>
       <div>
         <Title order={1} fz={22}>
           {tw("title")}

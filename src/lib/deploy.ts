@@ -2,12 +2,15 @@
  * Sending a release out (workflow.ts). Each runs in the CMS's server process after the request that began it, writing
  * its log to the deployment as it goes.
  *
- *   preview     the release → deploy/preview/content.json; the website built with it (CMS_CONTENT) in the CMS's checkout
- *               of the website (code.ts), on the branch cms-preview: main with a commit for each built-in template the
- *               release has otherwise (S6). Built in a folder of its own (NEXT_DIST_DIR=.cms-build/preview), then
- *               swapped into the folder 禄命秘解's server serves as preview.cameyware.com (the website's out/). A failed
- *               build leaves preview as it was. 禄命秘解's npm run all builds the same file on the same branch, so a
- *               restart there keeps it.
+ *   preview     the release → deploy/preview/content.json. preview.cameyware.com is the website built live
+ *               (NEXT_PUBLIC_CMS=preview, website v2.5.0): its pages read their content from out/cms-content.json, so a
+ *               release with the same code and no page the build lacks only replaces that file, at once (S8; the owner:
+ *               a build only when the code changes). Otherwise the website is built with it (CMS_CONTENT) in the CMS's
+ *               checkout of the website (code.ts), on the branch cms-preview: main with a commit for each built-in
+ *               template the release has otherwise (S6), in a folder of its own (NEXT_DIST_DIR=.cms-build/preview); the
+ *               content file and what the build was made of (out/cms-build.json) go in with it, then it is swapped into
+ *               the folder 禄命秘解's server serves (the website's out/). A failed build leaves preview as it was.
+ *               禄命秘解's npm run all builds the same way, so a restart there keeps it.
  *   production  the release → content/site.json, committed alone on top of GitHub's main from a worktree of its own and
  *               pushed (C2); Cloudflare Pages builds www.cameyware.com from it. A developer's commits not pushed yet
  *               stay where they are. A release that changes a built-in template: the files with content/site.json on
@@ -16,7 +19,8 @@
  *               into deploy/cms/site, which the CMS's preview server serves: after the website's code changes and when a
  *               built-in template comes into the workflow or leaves it, never after content (that comes live).
  */
-import { cpSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -100,12 +104,61 @@ async function contentFor(pg: Pg, release: number, env: Env, by: string) {
   return { ...content, environment: env, release: { id: release, at: new Date().toISOString(), by } };
 }
 
+/** Beside preview's build (out/): the content its pages read live, and what the build was made of. */
+export const LIVE_CONTENT = "cms-content.json";
+export const LIVE_BUILD = "cms-build.json";
+/** What a live preview build was made of: its code ([key]) and the pages it has a file for. */
+export type LiveBuild = { key: string; paths: string[] };
+
+/** A preview build's code: the website's main and the built-in templates the release carries on top. */
+async function previewKey(code: CodeFile[]) {
+  const main = (await git(["rev-parse", "main"], () => {})).trim();
+  const own = createHash("sha256")
+    .update(JSON.stringify(code.map((f) => [f.path, f.text])))
+    .digest("hex")
+    .slice(0, 16);
+  return `${main}:${own}`;
+}
+
+/** The addresses a build makes a file for: the pages not made inactive. */
+const pathsOf = (content: { pages: { path: string; status?: string }[] }) =>
+  content.pages.filter((p) => p.status !== "inactive").map((p) => p.path);
+
+/** Whether preview's build ([built]) shows content of code [key] with [paths] as it is: same code, no page it lacks. */
+export const liveFits = (built: LiveBuild | undefined, key: string, paths: string[]) =>
+  !!built && built.key === key && paths.every((p) => built.paths.includes(p));
+
+function readBuilt(out: string): LiveBuild | undefined {
+  try {
+    return JSON.parse(readFileSync(join(out, LIVE_BUILD), "utf8")) as LiveBuild;
+  } catch {
+    return undefined;
+  }
+}
+
+/** [file] written whole or not at all: a page reading it never meets half of it. */
+function writeWhole(file: string, text: string) {
+  writeFileSync(`${file}.tmp`, text);
+  renameSync(`${file}.tmp`, file);
+}
+
 async function toPreview(pg: Pg, release: number, by: string, log: (s: string) => void) {
   const content = await contentFor(pg, release, "preview", by);
+  const text = JSON.stringify(content, null, 2) + "\n";
   const file = deployDir("preview", "content.json");
   mkdirSync(deployDir("preview"), { recursive: true });
-  writeFileSync(file, JSON.stringify(content, null, 2) + "\n");
+  writeFileSync(file, text);
   const code = await codeChanges(pg, await releaseCode(pg, release), "main");
+  const out = join(siteRepo(), "out");
+  const key = await previewKey(code);
+  const paths = pathsOf(content);
+  // The same code and no new page: the live pages take the new content, no build.
+  if (liveFits(readBuilt(out), key, paths)) {
+    writeWhole(join(out, LIVE_CONTENT), text);
+    log(logLine("deploy.previewLive"));
+    return;
+  }
+  log(logLine("deploy.previewBuild"));
   await inTree(async (dir) => {
     await checkout(dir, "main", code, log, CODE_BRANCH);
     await lintCode(
@@ -113,11 +166,13 @@ async function toPreview(pg: Pg, release: number, by: string, log: (s: string) =
       code.map((f) => f.path),
       log,
     );
-    await buildSite(dir, file, ".cms-build/preview", {}, log);
-    const out = join(siteRepo(), "out");
+    await buildSite(dir, file, ".cms-build/preview", { NEXT_PUBLIC_CMS: "preview" }, log);
+    const built = join(dir, ".cms-build", "preview");
+    writeFileSync(join(built, LIVE_CONTENT), text);
+    writeFileSync(join(built, LIVE_BUILD), JSON.stringify({ key, paths } satisfies LiveBuild));
     const old = join(siteRepo(), `out.old-${Date.now()}`);
     if (existsSync(out)) await renameRetrying(out, old);
-    await renameRetrying(join(dir, ".cms-build", "preview"), out);
+    await renameRetrying(built, out);
     rmSync(old, { recursive: true, force: true });
   }, log);
   log(logLine("deploy.previewDone"));

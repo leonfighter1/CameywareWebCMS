@@ -248,7 +248,7 @@
     "rebuildPreview": "Rebuild preview",
     "production": "Production",
     "note": "A note for this release (optional)",
-    "previewStarted": "Pushing to preview ({n, plural, one {# file} other {# files}}): the build takes a minute or two",
+    "previewStarted": "Pushing {n, plural, one {# file} other {# files}} to preview: seconds for content alone, a minute or two when code changed",
     "toProductionBody": "Production's content with these files is committed to the website's repository (content/site.json, a built-in template's code with it, checked and built in the CMS's copy of the website first) and pushed to GitHub; Cloudflare Pages puts www.cameyware.com live in a few minutes. Check them on preview first.",
     "productionStarted": "Pushing to production",
     "deployments": "Deployments",
@@ -320,9 +320,9 @@
     "schedule": "Schedule",
     "publish": "Publish to production",
     "backTitle": "Send job #{id} back to in progress?",
-    "backBody": "Preview is built again without this job's files; they go back to In progress, still locked, and need approval again.",
+    "backBody": "Preview is updated without this job's files; they go back to In progress, still locked, and need approval again.",
     "back": "Back to in progress",
-    "backStarted": "Sending back: preview is being built again",
+    "backStarted": "Sending back: preview is being updated",
     "rejectTitle": "Send job #{id} back?",
     "rejectReason": "Why (its creator sees it under the bell)",
     "reject": "Send back",
@@ -404,8 +404,14 @@
     "othersHelp": "Files added to someone else's job stay yours: they come back to you if they leave it. Its creator moves the job on.",
     "noneOthers": "Nobody else has a job in progress.",
     "moveToNew": "Move to a new job",
-    "removeBodyPreview": "Preview is built again without them; once built they leave the workflow and go back, checked out, to whoever checked them in, their changes kept. The job's other files stay on preview.",
-    "removeStarted": "Removing: preview is being built again"
+    "removeBodyPreview": "Preview is updated without them; then they leave the workflow and go back, checked out, to whoever checked them in, their changes kept. The job's other files stay on preview.",
+    "removeStarted": "Removing: preview is being updated",
+    "buildingPreview": "Job #{id}: updating preview",
+    "buildingProduction": "Job #{id}: publishing to production",
+    "buildingBody": "The job can't be changed until this ends. Content alone takes seconds; changed code needs a build of a minute or two. This window closes by itself.",
+    "buildDone": "Deployment done",
+    "buildFailed": "Deployment failed",
+    "buildFailedHelp": "The job stays at its step; open the deployment under History to read its log."
   },
   "bell": {
     "summary": "{n, plural, =0 {No new notifications} one {# new notification} other {# new notifications}}",
@@ -626,7 +632,9 @@
     "productionDone": "Pushed to GitHub; Cloudflare Pages builds www.cameyware.com and puts it live in a few minutes.",
     "failed": "Failed: {reason}",
     "interrupted": "(The CMS restarted: this deployment was interrupted)",
-    "seed": "First content: the website's content/site.json at the time, on both preview and production."
+    "seed": "First content: the website's content/site.json at the time, on both preview and production.",
+    "previewLive": "Content alone changed: preview shows this release at once, no build.",
+    "previewBuild": "The code changed, or preview lacks some of these pages: building preview once (a minute or two)."
   },
   "explorer": {
     "tree": {

@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (h): v8.0.0, S8 (preview without a build on each push; the lightbox)
+
+- The owner asked how to avoid the build on each push; offered a live preview or queued builds, they chose both, with a
+  lightbox stopping changes while one runs. Website v2.5.0 builds preview live (`NEXT_PUBLIC_CMS=preview`, content from
+  `/cms-content.json`). `deploy.ts` toPreview writes only that file when `liveFits` (the key: the website's main + the
+  built-in templates' text; every page has a file), else builds live and records `cms-build.json`. The job page's
+  lightbox (`job-building`): a Modal no one closes, the deployment's log, the end said by a notification.
+- 禄命秘解's npm run all builds the same way. The queue of builds was left out (content no longer builds).
+
 ## 2026-11-16 (g): v7.0.0, S7 (workflow jobs, approval, a time, the bell)
 
 - The owner's requests and answers are in docs/tech-plan.md (S7). `jobs.ts` puts jobs on top of workflow.ts's file

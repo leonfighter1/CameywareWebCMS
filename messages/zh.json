@@ -248,7 +248,7 @@
     "rebuildPreview": "重建预览站",
     "production": "正式站",
     "note": "这一版的说明（可以不填）",
-    "previewStarted": "开始推到预览站（{n} 个文件）：构建要一两分钟",
+    "previewStarted": "开始推到预览站（{n} 个文件）：只改了内容时几秒就好，代码改了要构建一两分钟",
     "toProductionBody": "正式站的内容加上这些文件，提交到官网仓库（content/site.json，内置模板的代码也一起，先在 CMS 的官网副本里检查和构建）并推送到 GitHub，Cloudflare Pages 几分钟后上线 www.cameyware.com。请先在预览站检查过。",
     "productionStarted": "开始推到正式站",
     "deployments": "部署记录",
@@ -320,9 +320,9 @@
     "schedule": "定时",
     "publish": "发布到正式站",
     "backTitle": "把任务 #{id} 退回进行中？",
-    "backBody": "预览站重新构建，不再有这个任务的文件；它们回到“进行中”，仍然锁定，审批要重新来。",
+    "backBody": "预览站更新，不再有这个任务的文件；它们回到“进行中”，仍然锁定，审批要重新来。",
     "back": "退回进行中",
-    "backStarted": "开始退回：预览站在重新构建",
+    "backStarted": "开始退回：预览站在更新",
     "rejectTitle": "退回任务 #{id}？",
     "rejectReason": "为什么退回（创建人会在小铃铛里看到）",
     "reject": "退回",
@@ -404,8 +404,14 @@
     "othersHelp": "文件加到别人的任务里，仍在你名下：离开任务时回到你这里。任务由它的创建人推进。",
     "noneOthers": "别人没有进行中的任务。",
     "moveToNew": "移到新任务",
-    "removeBodyPreview": "预览站重新构建，不再有它们；构建好后它们离开工作流，回到签入它们的人名下（拿取状态），修改留着。任务里别的文件留在预览站。",
-    "removeStarted": "开始移除：预览站在重新构建"
+    "removeBodyPreview": "预览站更新，不再有它们；更新好后它们离开工作流，回到签入它们的人名下（拿取状态），修改留着。任务里别的文件留在预览站。",
+    "removeStarted": "开始移除：预览站在更新",
+    "buildingPreview": "任务 #{id}：正在更新预览站",
+    "buildingProduction": "任务 #{id}：正在发布到正式站",
+    "buildingBody": "完成之前不能修改这个任务。只改了内容时几秒就好，代码改了要构建一两分钟；好了这个窗口会自己关上。",
+    "buildDone": "部署完成",
+    "buildFailed": "部署失败",
+    "buildFailedHelp": "任务留在原来那一步；在“记录”下面点这次部署看日志。"
   },
   "bell": {
     "summary": "{n, plural, =0 {没有新通知} other {# 条新通知}}",
@@ -626,7 +632,9 @@
     "productionDone": "已推送到 GitHub；Cloudflare Pages 会在几分钟内构建并上线 www.cameyware.com。",
     "failed": "失败：{reason}",
     "interrupted": "（CMS 重新启动，这次部署中断了）",
-    "seed": "初始内容：官网当时的 content/site.json，预览站和正式站都是它。"
+    "seed": "初始内容：官网当时的 content/site.json，预览站和正式站都是它。",
+    "previewLive": "只换了内容：预览站马上显示这一版，不用构建。",
+    "previewBuild": "代码变了，或预览站上还没有这些页面：构建一次预览站（一两分钟）。"
   },
   "explorer": {
     "tree": {
