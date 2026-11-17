@@ -1,12 +1,11 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
-import { checkBlock } from "@/lib/catalog";
 import { freshDb } from "@/lib/db";
 import { fileState, take } from "@/lib/files";
 import { uniqueName } from "@/lib/names";
 import { pageNameOf } from "@/lib/pages";
 import { seedIfEmpty } from "@/lib/seed";
-import { copyPage, createPage, getComponent, getPage, listPages, saveComponent } from "@/lib/store";
+import { copyPage, createPage, getPage, listComponents, listPages, saveComponent } from "@/lib/store";
 import { exportDoc, importPageFile } from "@/lib/transfer";
 import { checkIn, toPreview, versions } from "@/lib/workflow";
 
@@ -45,8 +44,10 @@ describe("a page's name", () => {
 });
 
 describe("a page copied", () => {
-  it("has its settings and copies of its blocks, as new files of yours, apart from the page it came from", async () => {
+  // The owner, 2026-11-16: 「当你copypage的时候只是copypage里的框架…里面的所有页面rows的组成就应该用shared」.
+  it("has its settings and its rows, every block shared with the page it came from; no new block file", async () => {
     const from = (await listPages(pg)).find((p) => p.path === "/contact/")!;
+    const blocksBefore = (await listComponents(pg)).length;
     const id = await copyPage(
       pg,
       from.id,
@@ -55,16 +56,12 @@ describe("a page copied", () => {
     );
     const copy = (await getPage(pg, id))!;
     expect(copy).toMatchObject({ status: "inactive", layout: from.layout, name: "contact_copy" });
-    expect(copy.blocks).toHaveLength(from.blocks.length);
-    for (const [i, b] of copy.blocks.entries()) {
-      const was = from.blocks[i]!;
-      expect(b.id).not.toBe(was.id);
-      expect({ zone: b.zone, style: b.style }).toEqual({ zone: was.zone, style: was.style });
-      // The same content, as the catalog reads it (a new block has its defaults written out).
-      const [mine, theirs] = [(await getComponent(pg, b.id))!, (await getComponent(pg, was.id))!];
-      expect(checkBlock(mine.type, mine.data).value).toEqual(checkBlock(theirs.type, theirs.data).value);
-      expect(await fileState(pg, "component", b.id)).toMatchObject({ status: "checked_out", owner: "lee" });
-    }
+    expect(copy.description).toEqual(from.description);
+    expect(copy.blocks).toEqual(from.blocks);
+    expect((await listComponents(pg)).length).toBe(blocksBefore);
+    // The blocks stay whoever's they were (nobody's here): only the page is yours.
+    for (const b of copy.blocks)
+      expect(await fileState(pg, "component", b.id)).toMatchObject({ status: "available" });
     expect(await fileState(pg, "page", id)).toMatchObject({ status: "checked_out", owner: "lee" });
   });
 });

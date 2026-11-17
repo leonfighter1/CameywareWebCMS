@@ -422,6 +422,21 @@ check-in takes free ones along and names the others' with their holder. 我的�
 | ---- | ------------------------------------------------------------------------------------ |
 | WP57 | `inactivePage`; a 停用 badge in file tables; notes in 加入工作流 and on the job page |
 
+## v9.4.0 (medium, after v9.3.1): a copied page shares its blocks
+
+**The owner (2026-11-16)**: 「有个问题需要你确认，当你复制一个page的时候 page里的每个component你都copy了嘛 还是只是用的
+shared component」; told every block was copied: 「不应该copy， 为什么？因为当你copypage的时候只是copypage里的框架，不同的内容，
+比如matadata和与页面property相关的。里面的所有页面rows的组成就应该用shared。否则当copy一个文件的时候会造成大量的重复的子文件。
+这个需要更改」, 「试想一下，假如一个页面包含12个row，你这么一copy不知道产生了多少重复的内容。」
+
+**Changed:** `copyPage` keeps the source's placements (rows, zones, styles) with the same blocks; no block is created. To
+change a block for one page alone, the page editor's place dialog swaps it for a new or copied one (S4's Create New /
+Copy From Existing).
+
+| WP   | What                                                            |
+| ---- | --------------------------------------------------------------- |
+| WP58 | `copyPage` with shared blocks; the new-page help; the copy test |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -483,6 +498,7 @@ check-in takes free ones along and names the others' with their holder. 我的�
 | WP55 | done                                         | v9.3.0                 |
 | WP56 | done                                         | v9.3.0                 |
 | WP57 | done                                         | v9.3.1                 |
+| WP58 | done                                         | v9.4.0                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

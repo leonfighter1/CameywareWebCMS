@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (o): v9.4.0 (a copied page shares its blocks)
+
+- The owner asked whether a copied page copies its components, then: copy only the page's frame (settings, metadata),
+  its rows built from shared blocks, or a 12-row page makes a dozen duplicate files. `copyPage` (store.ts) now keeps the
+  placements as they are (deleted blocks left out); takeTheirParts still takes the copy's 依赖 nobody holds. The new-page
+  help (explorer.newHelp.page) says so; pages-s9's copy test now checks the same placements and no new block.
+- Walked on a copy (4 checks). The owner's old _copy blocks are left for them to discard.
+
 ## 2026-11-16 (n): v9.3.1 (停用 pages marked)
 
 - The owner pushed job #4 (/test/) to preview and found nothing at /zh/test/: the push (#430) and a rebuild (#431) were

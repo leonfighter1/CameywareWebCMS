@@ -771,7 +771,7 @@
     "startFrom": "Start from",
     "fromStarter": "The type's fields",
     "newHelp": {
-      "page": "A new page starts inactive and yours: add its blocks, check it, then make it active and put it into the workflow. A page copied from another gets copies of its blocks as new block files, so the two change apart. Its name is made from its title.",
+      "page": "A new page starts inactive and yours: add its blocks, check it, then make it active and put it into the workflow. A page copied from another gets that page's settings, metadata, layout and rows; its blocks are shared with the page it came from (no new block files): a block changed shows on both; to change one for this page alone, swap it for a new or copied block in the page editor. Its name is made from its title.",
       "block": "A new block is yours: fill it in, then add it to a page from the page's editor.",
       "template": "A new template is yours: write its markup, choose it on a block, then check in (the block brings it along).",
       "layout": "A new layout is yours: write its markup, choose it in a page's Metadata, then check in (the page brings it along)."

@@ -81,7 +81,7 @@ import { starterTemplate } from "@/generated/template";
 
 const done = () => revalidatePath("/", "layout");
 
-/** 新建页面: empty, or with [copyOf] a copy of that page (its blocks copied as new files, S9). */
+/** 新建页面: empty, or with [copyOf] a copy of that page (its settings and rows, its blocks shared, S9). */
 export async function createPageAction(path: string, title: L10n, copyOf?: string) {
   return attempt(async () => {
     const user = await editor();
@@ -89,7 +89,7 @@ export async function createPageAction(path: string, title: L10n, copyOf?: strin
     const id = copyOf
       ? await pg.transaction((tx) => copyPage(tx, copyOf, { path, title }, user.login))
       : await createPage(pg, { path, title }, user.login);
-    // A copy's new styles and layout nobody holds are yours with it (依赖).
+    // A copy's 依赖 nobody holds (the shared blocks, styles and layout never published) are yours with it.
     if (copyOf) await takeTheirParts(pg, [{ kind: "page", id }], user.login);
     done();
     return id;
