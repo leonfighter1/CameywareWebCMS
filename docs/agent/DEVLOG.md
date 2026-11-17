@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (j): v9.0.0, S9 (page names, a page copied, a page's own file, the history's pages, versions on preview)
+
+- Migration 8: pages.name, made by `namePages` (pages.ts) after every insert (createPage, the seed, writeWorking) from
+  `pageNameOf` (title en > zh > address; p{L}p{N} kept, the rest _). The explorer lists a page by its name, the
+  address under it; the page editor's title is the name. `copyPage` (store.ts) copies a page's blocks as new files.
+- `importPageFile` (transfer.ts) puts a file onto the page of its name through importDoc; `PageTransfer` in the page
+  list; `PlanView` shared with 下载与上传, which now says what it does. The export names a page's file by its name
+  (filename* for Chinese). 部署记录: `per` (20/50/100) and pages always shown.
+- `manifestsOn(env)` replaces productionManifests; versions carry `previewed`.
+
 ## 2026-11-16 (i): v8.0.1 (no 404 after discarding a new file that was deleted)
 
 - The owner: a new template deleted and then discarded showed a 404. The file bar left the page only for change "new";

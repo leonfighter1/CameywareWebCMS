@@ -77,6 +77,7 @@ export default async function PageEditorPage({ params }: { params: Promise<{ id:
         versions={past.map((v) => versionView(v, lang))}
         page={{
           id: page.id,
+          name: page.name,
           path: page.path,
           status: page.status,
           title: page.title,

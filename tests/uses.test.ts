@@ -4,6 +4,7 @@ import type { PageRow } from "@/lib/store";
 
 const page = (id: string, path: string, blocks: PageRow["blocks"], more: Partial<PageRow> = {}): PageRow => ({
   id,
+  name: id,
   path,
   status: "active",
   title: { zh: `${id} 标题`, en: `${id} title` },

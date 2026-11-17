@@ -16,7 +16,8 @@ import { DeploymentList } from "./list";
 const ENVS: Env[] = ["preview", "production"];
 const STATUSES: Deployment["status"][] = ["running", "done", "failed"];
 const ACTIONS: Action[] = ["preview", "back", "production", "rollback", "rebuild", "seed", "release"];
-const SIZE = 50;
+/** How many a page: the reader's choice (the owner, 2026-11-16: pagination for Deployments), 50 at first. */
+const PER = [20, 50, 100];
 
 /**
  * 部署记录, all of them (the owner, 2026-11-16: 「给deployments添加一个新的link，当前的deployment只显示当前的。要查看所有的
@@ -35,6 +36,7 @@ export default async function DeploymentsPage({
     action?: string;
     q?: string;
     page?: string;
+    per?: string;
   }>;
 }) {
   const q = await searchParams;
@@ -46,8 +48,9 @@ export default async function DeploymentsPage({
   const action = ACTIONS.find((a) => a === q.action);
   const words = q.q?.trim().slice(0, 200) || undefined;
   const page = Math.max(1, Number(q.page) || 1);
+  const size = PER.includes(Number(q.per)) ? Number(q.per) : 50;
   const [{ total, rows }, list, envs] = await Promise.all([
-    deploymentPage(pg, { page, size: SIZE, env, status, action, q: words }),
+    deploymentPage(pg, { page, size, env, status, action, q: words }),
     releases(pg),
     environments(pg),
   ]);
@@ -67,8 +70,14 @@ export default async function DeploymentsPage({
         tab={q.tab === "releases" ? "releases" : "deployments"}
         total={total}
         page={page}
-        pages={Math.max(1, Math.ceil(total / SIZE))}
-        filters={{ env: env ?? null, status: status ?? null, action: action ?? null, q: words ?? "" }}
+        pages={Math.max(1, Math.ceil(total / size))}
+        filters={{
+          env: env ?? null,
+          status: status ?? null,
+          action: action ?? null,
+          q: words ?? "",
+          per: size,
+        }}
         actions={ACTIONS}
         rows={rows.map((d) => ({
           id: d.id,

@@ -63,6 +63,8 @@ type TemplateDoc = { id?: string; type: string; name: string; markup: string };
 type LayoutDoc = { id?: string; name: string; markup: string };
 type PageMeta = {
   id?: string;
+  /** Its name (S9), for the reader: an upload goes to the page named as its file. */
+  name?: string;
   path: string;
   status?: "active" | "inactive";
   title: L10n;
@@ -121,6 +123,7 @@ async function webPageDoc(db: Db, p: PageRow, types: Map<string, string>): Promi
   return {
     page: {
       id: p.id,
+      name: p.name,
       path: s.path,
       status: s.status,
       title: s.title,
@@ -513,6 +516,35 @@ export type PlanItem = {
 export type Plan = { items: PlanItem[]; notes: Detail[] };
 
 const same = (s: string): Both => ({ zh: s, en: s });
+
+/**
+ * A page's file uploaded onto the page of its name (S9; the owner, 2026-11-16: 「download and upload with the json or xml
+ * file to cover the selected page … when you upload the same name with the file, it will be automatically checked out」):
+ * [fileName] without .json or .xml names it, and must name [picked] when one is. The page's own settings and placements
+ * become the file's (its address too, when the file changes it), through importDoc: what would change, or the change
+ * made, its files taken for [by] when nobody has them.
+ */
+export async function importPageFile(
+  db: PGlite,
+  fileName: string,
+  text: string,
+  by: string,
+  apply: boolean,
+  picked?: string,
+) {
+  const name = fileName.replace(/\.(json|xml)$/i, "");
+  const page = (await listPages(db)).find((p) => p.name === name && !p.deleted);
+  if (!page) throw new CmsError("errors.uploadNoPage", { name });
+  if (picked && page.id !== picked) {
+    const other = await getPage(db, picked);
+    throw new CmsError("errors.uploadOtherPage", { file: fileName, page: other?.name ?? picked });
+  }
+  const doc = parseUpload(text);
+  if (doc.kind !== "webpage" && doc.kind !== "page")
+    throw new CmsError("errors.uploadNotPage", { file: fileName });
+  const plan = await importDoc(db, { ...doc, page: { ...doc.page, id: page.id } }, by, apply);
+  return { page: page.id, plan };
+}
 
 /**
  * What [doc] would change ([apply] false), or the change made (true), in one transaction: refused whole, with every

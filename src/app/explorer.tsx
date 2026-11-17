@@ -46,6 +46,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { confirm, isMine, jobModal, StateBadges } from "@/components/files";
+import { PageTransfer } from "@/components/page-transfer";
 import { report } from "@/components/result";
 import type { FileView } from "@/lib/present";
 import {
@@ -559,6 +560,9 @@ function FileList({
         >
           {t("withCount", { label: tf("discard"), n: mine.length })}
         </Button>
+        {at === "content/pages" && (
+          <PageTransfer picked={chosen.filter((f) => f.kind === "page")} done={() => done(true)} />
+        )}
         <Button
           size="xs"
           variant="subtle"
@@ -801,7 +805,7 @@ function NewFile({
   const create = async () => {
     setBusy(true);
     if (what === "page") {
-      const r = await createPageAction(path, { zh: name });
+      const r = await createPageAction(path, { zh: name }, from === "starter" ? undefined : from);
       if (report(r, t("createdPage"))) router.push(`/pages/${r.value}`);
     } else if (what === "block") {
       const r = await createComponentAction(type!, name);
@@ -860,6 +864,21 @@ function NewFile({
                 ))}
                 {copies.map((c) => (
                   <Radio key={c.key} value={c.file!.id} label={t("fromCopy", { name: c.name })} />
+                ))}
+              </Stack>
+            </Radio.Group>
+          )}
+          {what === "page" && !!copies.length && (
+            <Radio.Group label={t("startFrom")} value={from} onChange={setFrom}>
+              <Stack gap={6} mt={4} mah={220} style={{ overflow: "auto" }}>
+                <Radio value="starter" label={t("blankPage")} />
+                {copies.map((c) => (
+                  <Radio
+                    key={c.key}
+                    value={c.file!.id}
+                    label={t("fromCopy", { name: `${c.name} (${c.title ?? ""})` })}
+                    data-testid={`copy-${c.file!.id}`}
+                  />
                 ))}
               </Stack>
             </Radio.Group>

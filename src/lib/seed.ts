@@ -14,7 +14,7 @@ import { knownTexts, standing } from "./code";
 import type { Db } from "./db";
 import { fileStates } from "./files";
 import { gitTexts } from "./git";
-import { placement, upgradePage } from "./pages";
+import { namePages, placement, upgradePage } from "./pages";
 import { siteRepo } from "./paths";
 import { createRelease } from "./releases";
 import { canonical, listTexts, revisionsAt, workingStates, writeWorking } from "./store";
@@ -87,6 +87,7 @@ export async function importSnapshot(db: Db, content: SiteContent, by: string) {
       ],
     );
   }
+  await namePages(db);
   for (const [id, t] of Object.entries(content.templates ?? {}))
     await db.query(`insert into templates (id, type, name, markup, updated_by) values ($1, $2, $3, $4, $5)`, [
       id,

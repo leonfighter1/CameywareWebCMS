@@ -13,7 +13,7 @@ import { both, checkBlock, check, defaults, fieldsOf, GLOBALS, ICONS, TYPES } fr
 import type { Db } from "./db";
 import { claimNew, fileStates, type FileRow, KINDS, type Kind, mustHold } from "./files";
 import { canonical } from "./json";
-import { type Placement, placement } from "./pages";
+import { namePages, type Placement, placement } from "./pages";
 import { siteRepo } from "./paths";
 import { type Both, CmsError, msg } from "./words";
 import { checkViewCode, codePath } from "@/generated/code";
@@ -35,6 +35,8 @@ export type { Placement } from "./pages";
 
 export interface PageRow {
   id: string;
+  /** Its name (S9: made from its title once; its download's file name). */
+  name: string;
   path: string;
   status: "active" | "inactive";
   title: L10n;
@@ -421,7 +423,39 @@ export async function createPage(db: Db, p: { path: string; title: L10n }, by: s
     `insert into pages (id, path, status, title, description, blocks, updated_by) values ($1, $2, 'inactive', $3, '{}', '[]', $4)`,
     [id, p.path, JSON.stringify(texts.title), by],
   );
+  await namePages(db);
   await claimNew(db, "page", id, by);
+  return id;
+}
+
+/**
+ * A new page copied from [from] (S9; the owner, 2026-11-16: 「we can create a new page copied from existing page」): its
+ * settings and layout, and a copy of each of its blocks (new files, yours, the same content, in the same places and
+ * styles), so the two pages change apart. Inactive and yours, like any new page; its id.
+ */
+export async function copyPage(db: Db, from: string, p: { path: string; title: L10n }, by: string) {
+  const src = await getPage(db, from);
+  if (!src || src.deleted) throw new CmsError("errors.noPage");
+  const id = await createPage(db, p, by);
+  const copies = new Map<string, string>();
+  for (const b of src.blocks) {
+    if (copies.has(b.id)) continue;
+    const c = await getComponent(db, b.id);
+    if (c && !c.deleted)
+      copies.set(b.id, await createComponent(db, c.type, `${c.name || c.id}（副本）`, by, c.data));
+  }
+  await savePage(
+    db,
+    id,
+    {
+      description: src.description,
+      layout: src.layout,
+      breadcrumb: src.breadcrumb,
+      sitemap: src.sitemap,
+      blocks: src.blocks.flatMap((b) => (copies.has(b.id) ? [{ ...b, id: copies.get(b.id)! }] : [])),
+    },
+    by,
+  );
   return id;
 }
 
@@ -761,6 +795,7 @@ export async function writeWorking(db: Db, kind: Kind, id: string, state: unknow
         by,
       ],
     );
+    await namePages(db);
   } else if (kind === "component") {
     if (state === null)
       return void (await db.query(

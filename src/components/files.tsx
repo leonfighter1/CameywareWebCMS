@@ -197,6 +197,11 @@ function Versions({
                 {v.at} · {v.author} · {t("checkinNo", { id: v.checkin_id })}
               </Text>
               <Text size="sm">{v.message}</Text>
+              {!!v.previewed.length && (
+                <Text size="xs" c="dimmed" data-testid={`version-previewed-${v.id}`}>
+                  {t("previewedIn", { list: v.previewed.map((p) => `#${p}`).join(", ") })}
+                </Text>
+              )}
               {!!v.published.length && (
                 <Text size="xs" c="dimmed">
                   {t("publishedIn", { list: v.published.map((p) => `#${p}`).join(", ") })}

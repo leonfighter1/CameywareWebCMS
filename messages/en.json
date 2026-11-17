@@ -85,7 +85,8 @@
     "preview": "Preview",
     "previewDraft": "Open its draft in a new tab",
     "previewSaves": "Saves your changes (a draft) first, then opens the preview in a new tab",
-    "splitTitle": "Split into a new job ({n, plural, one {# file} other {# files}})"
+    "splitTitle": "Split into a new job ({n, plural, one {# file} other {# files}})",
+    "previewedIn": "On preview in releases {list}"
   },
   "fields": {
     "linkHint": "/works/… or https://…",
@@ -454,12 +455,13 @@
     "noFiles": "It took no files (a rebuild or a rollback).",
     "back": "All deployments",
     "running": "Still running: the log refreshes by itself.",
-    "notFound": "No such deployment"
+    "notFound": "No such deployment",
+    "perPage": "Per page"
   },
   "transfer": {
     "title": "Download and upload",
     "download": "Download",
-    "downloadHelp": "Downloads are the current drafts (the working copy). A single page (as Bell's WebPage: its metadata and its components), block, style, layout, bundle or global downloads from its own editor. Upload the changed file below: it becomes your draft, ready to check in.",
+    "downloadHelp": "What you download is the drafts as they are now (the working copy).",
     "wholeSite": "The whole site",
     "texts": "UI texts",
     "upload": "Upload",
@@ -473,7 +475,20 @@
     },
     "willTake": "Checks out",
     "applied": "Written as drafts (checked out to you): check them in from My files",
-    "apply": "Write it ({n})"
+    "apply": "Write it ({n})",
+    "lead": "Download the site's content as files (JSON or XML), to keep or to change many things at once elsewhere; upload a changed file back and it becomes your drafts.",
+    "whatTitle": "What this page does",
+    "what": {
+      "site": "Download the whole site: every page, block, style, layout, global and UI text in one file. For a backup, or to change many things at once in a text editor.",
+      "texts": "Download the UI texts: every bundle's words in the four languages, for translating or proofreading in one go.",
+      "one": "One file only: a page from the content tree's Pages list (pick it, then Download or Upload; the file's name is the page's name); a block, style, layout, global or bundle from its own editor.",
+      "upload": "Upload: a file the CMS gave you, changed, comes back. What it would create and change is listed first and written only when you confirm, as drafts in your name, for the workflow.",
+      "safe": "An upload never changes the site itself: files someone else holds or in the workflow are refused; files nobody holds are taken for you."
+    },
+    "pageDownload": "Download",
+    "pageUpload": "Upload",
+    "pageUploadTitle": "Upload {file}",
+    "pageUploadHelp": "The page named as the file gets this file's content (as drafts); the page and its blocks are taken for you when nobody holds them."
   },
   "login": {
     "title": "Cameyware website CMS",
@@ -572,7 +587,10 @@
     "splitAll": "You can't split off every file: leave at least one",
     "emptyJob": "Job #{id} has no files",
     "scheduleAhead": "A publishing time must be at least a minute from now",
-    "removeAllPreview": "You can't remove every file of job #{id} from preview: send it back to in progress, then terminate it"
+    "removeAllPreview": "You can't remove every file of job #{id} from preview: send it back to in progress, then terminate it",
+    "uploadNoPage": "No page is named “{name}”: the file's name must be the page's name (as it was downloaded)",
+    "uploadOtherPage": "The file “{file}” isn't the picked page's (“{page}”): its name must be the page's name",
+    "uploadNotPage": "“{file}” isn't a page file"
   },
   "codeCheck": {
     "empty": "The code is empty",
@@ -722,7 +740,7 @@
     "fromStarter": "The type's fields",
     "fromCopy": "A copy of “{name}”",
     "newHelp": {
-      "page": "A new page starts inactive and yours: add its blocks, check it, then make it active and check it in.",
+      "page": "A new page starts inactive and yours: add its blocks, check it, then make it active and put it into the workflow. A page copied from another gets copies of its blocks as new block files, so the two change apart. Its name is made from its title.",
       "block": "A new block is yours: fill it in, then add it to a page from the page's editor.",
       "template": "A new template is yours: write its markup, choose it on a block, then check in (the block brings it along).",
       "layout": "A new layout is yours: write its markup, choose it in a page's Metadata, then check in (the page brings it along)."
@@ -763,7 +781,8 @@
     "inLayout": "Layout: {name}",
     "uses": "{n, plural, one {used in # place} other {used in # places}}",
     "laidOut": "{n, plural, one {# page uses it} other {# pages use it}}",
-    "builtinLayoutAbout": "In the website's code; not editable in the CMS"
+    "builtinLayoutAbout": "In the website's code; not editable in the CMS",
+    "blankPage": "A blank page"
   },
   "template": {
     "path": "Views/Component styles",

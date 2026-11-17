@@ -86,6 +86,7 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
   (`file-table.tsx`), `NEW_TAB` (`links.ts`: every link to an editor, a list or a log opens a tab of its own; the
   menu, the tree and 回到文件夹 stay), 用在 N 个页面 and its list (`used-on.tsx`), 预览 at an editor's top
   (`preview.tsx`: saves changes first, opens the draft in a new tab), 加入工作流's dialog (`job-form.tsx`, opened by
-  `jobModal`), a list of jobs and a step's badge (`job-table.tsx`), the bell (`bell.tsx`)
+  `jobModal`), a list of jobs and a step's badge (`job-table.tsx`), the bell (`bell.tsx`), an upload's plan (`plan.tsx`),
+  a page's own download and upload in the page list (`page-transfer.tsx`)
 - `scripts`: `start.ts` (both servers), `preview-server.ts` (cms-preview), `build-site.ts`, `sync.mjs`
 - `tests`: Vitest on an in-memory database seeded from the website

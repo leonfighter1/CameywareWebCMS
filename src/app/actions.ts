@@ -16,6 +16,7 @@ import { placement, starterLayout } from "@/lib/pages";
 import { insertPlacement, type Target } from "@/lib/rows";
 import {
   codeProblems,
+  copyPage,
   createComponent,
   createLayout,
   createPage,
@@ -42,7 +43,7 @@ import {
   templateProblems,
 } from "@/lib/store";
 import { isBuiltinLayout } from "@/generated/layouts";
-import { importDoc, parseUpload } from "@/lib/transfer";
+import { importDoc, importPageFile, parseUpload } from "@/lib/transfer";
 import { discard, rebuildPreview, restoreVersion, rollbackProduction } from "@/lib/workflow";
 import {
   type Actor,
@@ -71,12 +72,35 @@ import { starterTemplate } from "@/generated/template";
 
 const done = () => revalidatePath("/", "layout");
 
-export async function createPageAction(path: string, title: L10n) {
+/** 新建页面: empty, or with [copyOf] a copy of that page (its blocks copied as new files, S9). */
+export async function createPageAction(path: string, title: L10n, copyOf?: string) {
   return attempt(async () => {
     const user = await editor();
-    const id = await createPage(await database(), { path, title }, user.login);
+    const pg = await database();
+    const id = copyOf
+      ? await pg.transaction((tx) => copyPage(tx, copyOf, { path, title }, user.login))
+      : await createPage(pg, { path, title }, user.login);
     done();
     return id;
+  });
+}
+
+/**
+ * 上传 onto a page (S9; the owner: 「download and upload with the json or xml file to cover the selected page … when you
+ * upload the same name with the file, it will be automatically checked out」): the page named as the file (without
+ * .json or .xml), the one picked if one is; what would change ([apply] false), or the change made. Its files are taken for
+ * you when nobody has them (importDoc); another's, or one in the workflow, refuses it.
+ */
+export async function uploadPageAction(fileName: string, text: string, apply: boolean, picked?: string) {
+  return attempt(async (lang) => {
+    const user = await editor();
+    const { page, plan } = await importPageFile(await database(), fileName, text, user.login, apply, picked);
+    if (apply) done();
+    return {
+      page,
+      items: plan.items.map((i) => ({ ...i, label: i.label[lang] })),
+      notes: plan.notes.map((n) => say(n, lang)),
+    };
   });
 }
 

@@ -36,7 +36,7 @@ import {
   type Env,
   environments,
   logLine,
-  productionManifests,
+  manifestsOn,
   recordDeployed,
   releaseManifest,
   releases,
@@ -512,13 +512,20 @@ export type Version = {
   workflow?: Stage;
   /** The releases it went to production in. */
   published: number[];
+  /**
+   * The releases it was on preview in (the owner, 2026-11-16: 「everytime you pushed to preview, your version change is
+   * kept」): each check-in is a version, so one that went to preview can be found and restored like any other.
+   */
+  previewed: number[];
   /** The working copy is this version. */
   current: boolean;
 };
 
 /** A file's versions, newest first: each check-in of it, with what production and the workflow hold marked. */
 export async function versions(db: Pg, kind: Kind, id: string): Promise<Version[]> {
-  const { rows } = await db.query<Omit<Version, "production" | "workflow" | "published" | "current">>(
+  const { rows } = await db.query<
+    Omit<Version, "production" | "workflow" | "published" | "previewed" | "current">
+  >(
     `select r.id, r.data, r.deleted, r.author, r.created_at, c.message, c.id as checkin_id
        from revisions r join checkins c on c.id = r.checkin_id
       where r.kind = $1 and r.entity_id = $2 order by r.id desc`,
@@ -526,7 +533,10 @@ export async function versions(db: Pg, kind: Kind, id: string): Promise<Version[
   );
   const f = (await fileStates(db)).get(`${kind}:${id}`);
   const w = (await workingStates(db)).get(`${kind}:${id}`);
-  const published = await productionManifests(db);
+  const [published, previewed] = await Promise.all([
+    manifestsOn(db, "production"),
+    manifestsOn(db, "preview"),
+  ]);
   return rows.map((r) => {
     const rid = Number(r.id);
     return {
@@ -536,6 +546,7 @@ export async function versions(db: Pg, kind: Kind, id: string): Promise<Version[
       production: f?.prod_revision_id === rid,
       workflow: f?.status === "in_workflow" && f.revision_id === rid ? (f.stage ?? undefined) : undefined,
       published: published.filter((p) => p.manifest[`${kind}:${id}`] === rid).map((p) => p.id),
+      previewed: previewed.filter((p) => p.manifest[`${kind}:${id}`] === rid).map((p) => p.id),
       current: !!w && (r.deleted ? w.deleted : !w.deleted && canonical(r.data) === canonical(w.state)),
     };
   });

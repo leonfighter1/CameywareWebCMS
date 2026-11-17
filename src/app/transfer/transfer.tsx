@@ -1,38 +1,18 @@
 "use client";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  FileButton,
-  Group,
-  List,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Button, Card, FileButton, Group, List, Stack, Text, Title } from "@mantine/core";
 import { IconDownload, IconUpload } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { changedIn, type Plan, PlanView } from "@/components/plan";
 import { report } from "@/components/result";
-import type { Kind } from "@/lib/files";
 import { importAction } from "../actions";
 
-type Plan = {
-  items: {
-    kind: Kind;
-    id: string;
-    label: string;
-    action: "create" | "update" | "unchanged";
-    take?: boolean;
-  }[];
-  notes: string[];
-};
-
-const ACTION_COLOR = { create: "blue", update: "yellow", unchanged: "gray" } as const;
-
+/**
+ * 下载与上传 (the owner, 2026-11-16: 「for download & upload on the navigation, i currently don't know what can it do」):
+ * what it is for, said first; the whole site or the UI texts downloaded; any file the CMS gave uploaded back, shown before
+ * it is written. A page's own file goes from the content tree's page list (S9).
+ */
 export function Transfer() {
   const t = useTranslations("transfer");
   const tf = useTranslations("files");
@@ -50,13 +30,29 @@ export function Transfer() {
     setBusy(false);
     if (report(r)) setPlan(r.value);
   };
-  const changed = plan?.items.filter((i) => i.action !== "unchanged") ?? [];
-  const count = (a: string) => plan?.items.filter((i) => i.action === a).length ?? 0;
+  const changed = plan ? changedIn(plan) : [];
   return (
     <Stack gap="lg">
-      <Title order={1} fz={22}>
-        {t("title")}
-      </Title>
+      <div>
+        <Title order={1} fz={22}>
+          {t("title")}
+        </Title>
+        <Text size="sm" c="dimmed">
+          {t("lead")}
+        </Text>
+      </div>
+      <Card withBorder data-testid="transfer-what">
+        <Title order={2} fz={18} mb="xs">
+          {t("whatTitle")}
+        </Title>
+        <List size="sm" spacing={6}>
+          <List.Item>{t("what.site")}</List.Item>
+          <List.Item>{t("what.texts")}</List.Item>
+          <List.Item>{t("what.one")}</List.Item>
+          <List.Item>{t("what.upload")}</List.Item>
+          <List.Item>{t("what.safe")}</List.Item>
+        </List>
+      </Card>
       <Card withBorder>
         <Title order={2} fz={18} mb="xs">
           {t("download")}
@@ -101,44 +97,7 @@ export function Transfer() {
         )}
         {plan && (
           <Stack mt="md">
-            {!!plan.notes.length && (
-              <Alert color="blue">
-                <List size="sm">
-                  {plan.notes.map((n) => (
-                    <List.Item key={n}>{n}</List.Item>
-                  ))}
-                </List>
-              </Alert>
-            )}
-            <Text size="sm">
-              {t("summary", { create: count("create"), update: count("update"), same: count("unchanged") })}
-            </Text>
-            {!!changed.length && (
-              <Table verticalSpacing={4}>
-                <Table.Tbody>
-                  {changed.slice(0, 300).map((i) => (
-                    <Table.Tr key={`${i.kind}:${i.id}`}>
-                      <Table.Td w={90}>{tf(`kinds.${i.kind}`)}</Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{i.label}</Text>
-                      </Table.Td>
-                      <Table.Td w={200}>
-                        <Group gap={4}>
-                          <Badge color={ACTION_COLOR[i.action]} variant="light">
-                            {t(`actions.${i.action}`)}
-                          </Badge>
-                          {i.take && (
-                            <Badge color="blue" variant="outline">
-                              {t("willTake")}
-                            </Badge>
-                          )}
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            )}
+            <PlanView plan={plan} />
             <Group>
               <Button
                 disabled={!changed.length}

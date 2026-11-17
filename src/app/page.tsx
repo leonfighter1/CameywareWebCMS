@@ -47,9 +47,11 @@ export default async function ExplorerPage({ searchParams }: { searchParams: Pro
       {
         key: `page:${p.id}`,
         folder: "content/pages",
-        name: p.path,
+        // Its name, its address under it (S9; the owner: 「it should be the page name itself, url should be its
+        // description」).
+        name: p.name,
         mono: true,
-        title: (lang === "en" ? p.title.en : undefined) || p.title.zh || "",
+        title: p.path,
         active: p.status === "active",
         blocks: p.blocks.length,
         layout: layoutLabel(p.layout, layouts, lang),

@@ -99,12 +99,14 @@ export async function releaseManifest(db: Db, id: number): Promise<Record<string
 }
 
 /** The releases that went to production, each with its manifest: what a revision was published in. */
-export async function productionManifests(db: Db) {
+/** The releases [env] showed (deployed there whole), with the version of each file they were made of. */
+export async function manifestsOn(db: Db, env: Env) {
   const { rows } = await db.query<{ id: number; manifest: Record<string, number> }>(
     `select r.id, r.manifest from releases r
       where r.manifest is not null
-        and exists (select 1 from deployments d where d.release_id = r.id and d.env = 'production' and d.status = 'done')
+        and exists (select 1 from deployments d where d.release_id = r.id and d.env = $1 and d.status = 'done')
       order by r.id`,
+    [env],
   );
   return rows.map((r) => ({ id: Number(r.id), manifest: r.manifest }));
 }

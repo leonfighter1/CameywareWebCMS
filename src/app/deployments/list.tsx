@@ -36,7 +36,7 @@ export type RunRow = {
 
 export const STATUS_COLOR = { running: "yellow", done: "green", failed: "red" } as const;
 
-type Filters = { env: string | null; status: string | null; action: string | null; q: string };
+type Filters = { env: string | null; status: string | null; action: string | null; q: string; per: number };
 
 /**
  * The history: every deployment a page at a time, found by words and filtered by site, state and step, each one's log in
@@ -80,6 +80,7 @@ export function DeploymentList({
     if (f.status) q.set("status", f.status);
     if (f.action) q.set("action", f.action);
     if (f.q.trim()) q.set("q", f.q.trim());
+    if (f.per !== 50) q.set("per", String(f.per));
     if (change.page && change.page > 1) q.set("page", String(change.page));
     router.push(`/deployments/?${q}`);
   };
@@ -217,11 +218,24 @@ export function DeploymentList({
               {t("none")}
             </Text>
           )}
-          {pages > 1 && (
-            <Group justify="center" mt="md">
-              <Pagination total={pages} value={page} onChange={(p) => go({ page: p })} size="sm" />
+          <Group justify="space-between" mt="md" data-testid="deployments-pages">
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">
+                {t("perPage")}
+              </Text>
+              <Select
+                size="xs"
+                w={80}
+                data={["20", "50", "100"]}
+                value={String(filters.per)}
+                onChange={(v) => go({ per: Number(v) || 50 })}
+                allowDeselect={false}
+                aria-label={t("perPage")}
+                data-testid="deployments-per"
+              />
             </Group>
-          )}
+            <Pagination total={pages} value={page} onChange={(p) => go({ page: p })} size="sm" />
+          </Group>
         </Card>
       )}
     </Stack>

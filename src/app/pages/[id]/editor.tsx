@@ -190,6 +190,8 @@ export function PageEditor({
   versions: VersionView[];
   page: {
     id: string;
+    /** Its name (S9): the title of the editor, its address under it. */
+    name: string;
     path: string;
     status: "active" | "inactive";
     title: L10n;
@@ -636,10 +638,13 @@ export function PageEditor({
             {t("pageLabel")}
           </Text>
           <Title order={1} fz={22} ff="monospace">
-            {page.path}
+            {page.name}
           </Title>
           <Text size="sm" c="dimmed">
-            {page.title.zh || page.title.en} ·{" "}
+            <Text span ff="monospace" size="sm">
+              {page.path}
+            </Text>{" "}
+            · {page.title.zh || page.title.en} ·{" "}
             {layouts.find((l) => l.value === page.layout)?.label ?? page.layout}
           </Text>
         </div>
@@ -889,6 +894,8 @@ function Properties({
   close: () => void;
   page: {
     id: string;
+    /** Its name (S9): the title of the editor, its address under it. */
+    name: string;
     path: string;
     status: "active" | "inactive";
     title: L10n;
