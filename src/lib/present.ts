@@ -4,8 +4,10 @@
  */
 import type { Field } from "./catalog";
 import { labelIn } from "./labels";
+import type { PageRow } from "./store";
 import type { FileInfo, Version } from "./workflow";
 import type { Lang } from "./words";
+import { pick } from "@/generated/model";
 
 /** A date and time as [lang] writes it. */
 export const when = (at: string | Date | null | undefined, lang: Lang) =>
@@ -72,6 +74,43 @@ export const fieldRefs = (fields: Field[], lang: Lang): FieldRef[] =>
     ...(f.options && { options: f.options.map((o) => o.value) }),
     ...(f.fields && { fields: fieldRefs(f.fields, lang) }),
   }));
+
+/** A page a block stands on: its address, title, whether it is on the site, its draft in the preview, its places. */
+export type PageUse = {
+  id: string;
+  path: string;
+  title: string;
+  active: boolean;
+  draft: string;
+  places: { zone: string; style: string }[];
+};
+
+/**
+ * The pages among [pages] (not deleted) that show block [id], each with every place it has there (a block can stand on
+ * a page more than once): [site] is the preview in the reader's language (a page's draft is [site][path]?view=draft,
+ * at the block's [anchor]), [style] a place's style by name.
+ */
+export function pageUses(
+  pages: PageRow[],
+  id: string,
+  o: { lang: Lang; site: string; anchor?: unknown; style: (template: string | undefined) => string },
+): PageUse[] {
+  const anchor = typeof o.anchor === "string" && o.anchor ? `#${o.anchor}` : "";
+  return pages.flatMap((p) => {
+    const at = p.deleted ? [] : p.blocks.filter((b) => b.id === id);
+    if (!at.length) return [];
+    return [
+      {
+        id: p.id,
+        path: p.path,
+        title: pick(p.title, o.lang),
+        active: p.status === "active",
+        draft: `${o.site}${p.path}?view=draft${anchor}`,
+        places: at.map((b) => ({ zone: b.zone, style: o.style(b.style) })),
+      },
+    ];
+  });
+}
 
 /** An editor's link to a file. */
 export const fileHref = (kind: FileInfo["kind"], id: string) =>

@@ -2,6 +2,22 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (f): v6.1.0 (the pages that use a block, Save and Preview at the top, the favicon)
+
+- The owner's requests are in docs/tech-plan.md (v6.1.0, after S6). `pageUses` (present.ts) gives a block's pages,
+  each place (zone, style), title, state and draft address; `UsedOn` (components/used-on.tsx) is the link and its list:
+  in the block's editor (the bottom card is gone), on a shared block's card in the page editor, and as the 用在 column
+  of 用共用的. `PreviewButton` (components/preview.tsx) opens a draft in a new tab and saves changes first (a tab
+  opened at the click, sent on once saved); the block's and the global's editors have 保存 and 预览 at the top, the
+  block's preview frame is gone. `src/app/icon.svg`: the company's mark with a pencil.
+- Mistake 15: Mantine 9 closes every open dialog on Esc (a window listener each); the one under another turns
+  `closeOnEscape` off meanwhile (组件属性 under 浏览 and 用在, which had the bug too).
+- Mistake 16: the first walk ran as admin on the running CMS and left /works/lumingmijie/delete-account/ taken; the
+  owner, as the same admin, checked it in with their own file and pushed it to 预览站 (「webfl5019」; nothing of the
+  walk's was saved in it). Walks now run on a copy (`CMS_DATA_DIR`, port 8792).
+- The owner, at the end: workflow jobs as Bell's Workflow Job Manager (several workflows, each its own files and
+  ticket): planned as S7.
+
 ## 2026-11-16 (e): v6.0.0, S6 (built-in templates as files, the deployment history, new tabs)
 
 - The owner's requests are in docs/tech-plan.md (S6). Kind `code` (migration 5, `code_files`): a type's built-in

@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import { Frame } from "@/components/frame";
 import { GLOBALS, ICONS } from "@/lib/catalog";
 import { descriptionIn, labelIn } from "@/lib/labels";
+import { previewBase } from "@/lib/hosts";
 import { fileViews, versionView } from "@/lib/present";
-import { database, language, requireUser } from "@/lib/server";
+import { database, host, language, requireUser } from "@/lib/server";
 import { getGlobal } from "@/lib/store";
 import { files, versions } from "@/lib/workflow";
 import { GlobalEditor } from "./editor";
@@ -31,6 +32,10 @@ export default async function GlobalPage({
   ]);
   const file = fileViews(all, lang)[`global:${key}`];
   if (!g || !file) notFound();
+  // 预览: the page the preview's Edit came from, in its drafts; or the home page.
+  const base = previewBase(await host());
+  const from = back?.startsWith(base) ? new URL(back) : undefined;
+  from?.searchParams.set("view", "draft");
   const items = ((works?.data as { items?: { slug: string }[] })?.items ?? []).map((w) => ({
     value: w.slug,
     label: w.slug,
@@ -50,6 +55,7 @@ export default async function GlobalPage({
         data={g.data}
         ctx={{ works: items, icons: ICONS }}
         back={back}
+        preview={from?.href ?? `${base}/${lang === "en" ? "en" : "zh"}/?view=draft`}
       />
     </Frame>
   );

@@ -4,7 +4,7 @@ import { Frame } from "@/components/frame";
 import { TYPES } from "@/lib/catalog";
 import { labelIn } from "@/lib/labels";
 import { previewBase } from "@/lib/hosts";
-import { fileViews, versionView } from "@/lib/present";
+import { fileViews, pageUses, versionView } from "@/lib/present";
 import { database, host, language, requireUser } from "@/lib/server";
 import { getPage, listComponents, listLayouts, listPages, listTemplates } from "@/lib/store";
 import { files, versions } from "@/lib/workflow";
@@ -55,6 +55,9 @@ export default async function PageEditorPage({ params }: { params: Promise<{ id:
       .filter((p) => p.blocks.some((b) => typeOf.get(b.id) === type && (b.style ?? undefined) === style))
       .map((p) => p.path);
   const builtinName = (await getTranslations("page"))("builtinStyle");
+  const site = `${previewBase(await host())}/${lang === "en" ? "en" : "zh"}`;
+  const styleName = (s: string | undefined) =>
+    s ? (templates.find((x) => x.id === s)?.name ?? s) : builtinName;
   const styles: Record<string, StyleInfo[]> = {};
   for (const type of Object.keys(TYPES)) {
     const at = usedIn(type, undefined);
@@ -111,9 +114,15 @@ export default async function PageEditorPage({ params }: { params: Promise<{ id:
         styles={styles}
         library={comps
           .filter((c) => !c.deleted)
-          .map((c) => ({ id: c.id, type: c.type, name: c.name || c.id, file: views[`component:${c.id}`] }))}
+          .map((c) => ({
+            id: c.id,
+            type: c.type,
+            name: c.name || c.id,
+            file: views[`component:${c.id}`],
+            uses: pageUses(pages, c.id, { lang, site, anchor: c.data.anchor, style: styleName }),
+          }))}
         types={Object.entries(TYPES).map(([value, d]) => ({ value, label: labelIn(d, lang) }))}
-        preview={`${previewBase(await host())}/${lang === "en" ? "en" : "zh"}${page.path}?view=draft`}
+        preview={`${site}${page.path}?view=draft`}
       />
     </Frame>
   );

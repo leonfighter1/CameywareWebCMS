@@ -74,7 +74,7 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
   (`workflow.ts`), releases, environments and deployments (`releases.ts`), deploying (`deploy.ts`), the built-in
   templates' code and the website's checkout (`code.ts`), git (`git.ts`), download and upload
   (`transfer.ts`), sign-in (`auth.ts`), the first content (`seed.ts`), the two languages (`words.ts`), what pages hand
-  their client parts (`present.ts`), JSON compared (`json.ts`)
+  their client parts (`present.ts`, with a block's pages: `pageUses`), JSON compared (`json.ts`)
 - `src/app`: the explorer (`page.tsx`, `explorer.tsx`: the tree, each folder's files, who is doing what), the editors
   (pages: Bell's page editor with the palette, rows, the place dialog, the style browser and Metadata; components,
   templates and each type's built-in one, layouts and the built-in ones, globals, bundles), 我的文件 (`mine`), 工作流
@@ -83,6 +83,7 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
   sign-in, the preview's live content and downloads (`api/export`; a built-in template's code, `api/code`)
 - `src/components`: the shell, the fields' form, a file's state and its bar (`files.tsx`), a list of files
   (`file-table.tsx`), `NEW_TAB` (`links.ts`: every link to an editor, a list or a log opens a tab of its own; the
-  menu, the tree and 回到文件夹 stay)
+  menu, the tree and 回到文件夹 stay), 用在 N 个页面 and its list (`used-on.tsx`), 预览 at an editor's top
+  (`preview.tsx`: saves changes first, opens the draft in a new tab)
 - `scripts`: `start.ts` (both servers), `preview-server.ts` (cms-preview), `build-site.ts`, `sync.mjs`
 - `tests`: Vitest on an in-memory database seeded from the website

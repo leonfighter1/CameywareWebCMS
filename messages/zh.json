@@ -84,7 +84,10 @@
       "code": "内置模板代码"
     },
     "busy": "正在部署",
-    "downloadVersion": "下载这个版本"
+    "downloadVersion": "下载这个版本",
+    "preview": "预览",
+    "previewDraft": "在新标签页打开它的草稿",
+    "previewSaves": "先保存你的修改（草稿），再在新标签页打开预览"
   },
   "fields": {
     "linkHint": "/works/… 或 https://…",
@@ -184,7 +187,9 @@
     "allStyles": "全部样式（按名称）",
     "pickStyle": "用这个样式",
     "style": "样式",
-    "builtinStyle": "内置模板（代码）"
+    "builtinStyle": "内置模板（代码）",
+    "colUses": "用在",
+    "sharedOn": "共用 · {n} 个页面"
   },
   "component": {
     "saved": "已保存（草稿）：CMS 预览切到“草稿”就能看到",
@@ -199,14 +204,22 @@
     "cancel": "取消",
     "deleted": "区块已删除（草稿）",
     "save": "保存",
-    "usedOn": "用在这些页面上（在页面编辑里改它的区和样式）",
-    "unused": "还没用在页面上：在页面的编辑里“加一个已有的区块”。",
-    "previewDraft": "预览（草稿）",
-    "openTab": "在新标签页打开",
-    "previewTitle": "区块预览",
     "noPreview": "这个区块没用在页面上，没有预览。",
-    "builtin": "内置模板（代码）",
-    "placedAs": "{zone} 区 · 样式：{style}"
+    "builtin": "内置模板（代码）"
+  },
+  "uses": {
+    "link": "用在 {n} 个页面",
+    "none": "还没用在页面上",
+    "title": "用到「{name}」的页面（{n}）",
+    "search": "按地址或标题查找",
+    "page": "页面",
+    "places": "在这页的位置",
+    "place": "{zone} 区 · 样式：{style}",
+    "here": "此页",
+    "inactive": "停用",
+    "draft": "预览草稿",
+    "noMatch": "没有找到这样的页面。",
+    "help": "改这个区块的内容，这些页面都会跟着变。它在每页的区和样式，在那一页的编辑里改。"
   },
   "global": {
     "back": "返回预览",

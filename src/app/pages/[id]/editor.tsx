@@ -66,7 +66,8 @@ import { type DragEvent, type ReactNode, useOptimistic, useState, useTransition 
 import { FieldsEditor } from "@/components/fields";
 import { Editable, FileBar, isMine, StateBadges } from "@/components/files";
 import { report } from "@/components/result";
-import type { FileView, VersionView } from "@/lib/present";
+import { UsedOn } from "@/components/used-on";
+import type { FileView, PageUse, VersionView } from "@/lib/present";
 import { moveCard, moveRow, newRowKey, type Row, rowsIn, type Target } from "@/lib/rows";
 import type { L10n } from "@/generated/model";
 import { deletePageAction, placeBlockAction, savePageAction, setBlocksAction } from "../../actions";
@@ -90,7 +91,8 @@ type Zone = { name: string; label: string; full: boolean };
 type Option = { value: string; label: string };
 /** A style of a type: its name, how many pages use it, which. */
 export type StyleInfo = Option & { uses: number; pages: string[] };
-type Library = { id: string; type: string; name: string; file?: FileView };
+/** A component: its file's state and the pages it stands on (用在 N 个页面). */
+type Library = { id: string; type: string; name: string; file?: FileView; uses: PageUse[] };
 type T = ReturnType<typeof useTranslations<"page">>;
 
 /** What is being dragged: a type, 新的一行, a row (its placements), or one component of a row. */
@@ -418,6 +420,7 @@ export function PageEditor({
   /** One component of a row: its content and style, what can be done to it; dragged by its bar. */
   const card = (p: Placed, i: number, c: number, r: Row) => {
     const key = `card:${i}`;
+    const uses = library.find((x) => x.id === p.id)?.uses ?? [];
     return (
       <Card
         key={`${p.id}:${i}`}
@@ -546,6 +549,15 @@ export function PageEditor({
               </Anchor>
             )}
             <StateBadges file={p.file} me={me} size="xs" />
+            {uses.length > 1 && (
+              <UsedOn
+                name={p.name || p.id}
+                uses={uses}
+                here={page.id}
+                label={t("sharedOn", { n: uses.length })}
+                size="xs"
+              />
+            )}
           </Group>
           <Group gap={6}>
             <Text size="sm" fw={600}>
@@ -1044,6 +1056,8 @@ function PlaceDialog({
     placing.replace === undefined && !placing.to.join && !placing.to.beforeRow && !placing.to.row;
   const [style, setStyle] = useState(current?.style ?? BUILTIN);
   const [browse, setBrowse] = useState(false);
+  /** A component's 用在 list is open over this dialog. */
+  const [listing, setListing] = useState(false);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -1072,6 +1086,8 @@ function PlaceDialog({
     <Modal
       opened
       onClose={close}
+      // Esc closes only the dialog opened over it (浏览, 用在).
+      closeOnEscape={!browse && !listing}
       title={t("attributesTitle", { type: typeLabel })}
       size="xl"
       data-testid="place-dialog"
@@ -1126,6 +1142,7 @@ function PlaceDialog({
                 <Table.Tr>
                   <Table.Th>{t("colName")}</Table.Th>
                   <Table.Th>{t("colState")}</Table.Th>
+                  <Table.Th>{t("colUses")}</Table.Th>
                   <Table.Th>{t("colModified")}</Table.Th>
                   <Table.Th>{t("colBy")}</Table.Th>
                 </Table.Tr>
@@ -1146,6 +1163,16 @@ function PlaceDialog({
                     </Table.Td>
                     <Table.Td>
                       <StateBadges file={c.file} me={me} size="xs" />
+                    </Table.Td>
+                    <Table.Td>
+                      <UsedOn
+                        name={c.name}
+                        uses={c.uses}
+                        here={pageId}
+                        size="xs"
+                        zIndex={400}
+                        onOpen={setListing}
+                      />
                     </Table.Td>
                     <Table.Td>
                       <Text size="xs">{c.file?.at ?? "—"}</Text>

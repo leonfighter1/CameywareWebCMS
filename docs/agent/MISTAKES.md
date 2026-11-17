@@ -20,8 +20,22 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 12. In a browser walk, let a save's refresh settle before the next drag; when a drop does nothing, log the dragstart's payload first
 13. Run vitest (and any Vite tool) from an upper-case drive path on Windows; 'reading config' at describe means two copies of vitest, not a broken test
 14. From PowerShell run npx next build and then npm start (or use Git Bash for npm start -- --build); check the log says 'building the CMS' before walking
+15. A Mantine Modal opened over another: the one underneath turns closeOnEscape off while it is open (or both go in a Modal.Stack); never rely on stopPropagation for Esc
+16. Run a browser walk that changes files on a copy of the CMS (CMS_DATA_DIR copy, its own port), never on the CMS the owner uses; read the real one only
 
 ## Log
+
+### 2026-11-16: A browser walk as admin on the running CMS mixed into the owner's check-in
+- **Symptom:** The walk took /works/lumingmijie/delete-account/ as admin and stopped on a failure; the owner, signed in as the same admin, checked in and pushed to 预览站 with that page among their files
+- **Root cause:** The walk shared the owner's live CMS and account, so its taken files looked like the owner's in 我的文件
+- **Fix:** Walks run on a copy: CMS_DATA_DIR at a copy of data/cms (made with the copy's server stopped) and CMS_DEPLOY_DIR in the scratchpad, next start -p 8792; the real CMS is only read
+- **Rule:** Run a browser walk that changes files on a copy of the CMS (CMS_DATA_DIR copy, its own port), never on the CMS the owner uses; read the real one only (Rule 16)
+
+### 2026-11-16: Esc in a dialog opened over another closed both
+- **Symptom:** Esc in the 用在 list (and in 浏览) opened over 组件属性 closed 组件属性 too; stopPropagation on the inner dialog did nothing
+- **Root cause:** Mantine 9 gives every open Modal its own window keydown listener (capture) that closes it on Esc; only Modal.Stack shares one
+- **Fix:** The dialog underneath sets closeOnEscape={!browse && !listing} while one is open over it; UsedOn reports open/close through onOpen
+- **Rule:** A Mantine Modal opened over another: the one underneath turns closeOnEscape off while it is open (or both go in a Modal.Stack); never rely on stopPropagation for Esc (Rule 15)
 
 ### 2026-11-16: npm start -- --build from Windows PowerShell started the old build
 - **Symptom:** After npm start -- --build the CMS served the previous version: a new page's controls never appeared and no 'building the CMS' line was printed

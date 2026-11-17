@@ -240,6 +240,60 @@ tabs.
 | WP33 | The built-in template's page: its file bar, versions with downloads, the code, 下载, 上传替换 (auto-take, 超级管理员); the explorer shows its state; 禄命秘解's `npm run all` builds on `cms-preview` |
 | WP34 | 部署记录 (`/deployments`: search, site, state and step filters, 50 a page; a deployment's own page with its log and files; 所有版本 as its second tab); the 工作流 page's 当前部署; links in new tabs |
 
+## v6.1.0 (medium, after S6): the pages that use a block, Save and Preview at the top, the favicon
+
+**The owner (2026-11-16):**
+
+> Add a new feature, for opened component content of the file, we can trace the origins of the pages that used the
+> component. for example, for shared content file, it can be referenced by different pages, so you can create a link
+> that triggers a pop up, that popup will list all pages that contains the content file
+
+> also add a fav icon for the cms pages.
+
+> 每个content file的顶部也添加一个 save, 同时再增加一个preview. preview link 点开后可以preview changes。 同时当前更改的
+> 页面底部不需要再添加Preview (drafts)。
+
+**Read as:** a link 用在 N 个页面 that opens the list of a block's pages (each place's zone and style, its draft), in the
+block's editor, on a shared block's card in the page editor and in 用共用的's table; 保存 and 预览 at the top of the
+editors with one form and one Save (blocks, globals; a page saves each move and has 预览 at the top already, a bundle
+saves each text), 预览 saving changes first and opening the draft in a new tab, no preview frame in the block's editor;
+an icon of the CMS's own.
+
+| WP   | What                                                                                                                                      |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| WP35 | `pageUses` (present.ts), `UsedOn` (components/used-on.tsx) in the block's editor, the page editor's cards and 用共用的; Esc over a dialog |
+| WP36 | `PreviewButton` (components/preview.tsx); 保存 and 预览 at the top of the block's and the global's editors; the block's frame gone        |
+| WP37 | `src/app/icon.svg`: the company's mark (the website's) in the CMS's red, with a pencil; light and dark                                    |
+
+## S7 Workflow jobs (planned; big: CMS v7.0.0)
+
+**The owner (2026-11-16)**, with a screenshot of Bell's Workflow Job Manager (its steps Work in Progress, Deploy to
+Preview1, Deploy to Preview2, Submit for Approval, Approve, Publish, Scheduled, Completed, with Bypass Preview1/2,
+Reject, Return to Work in Progress, Terminate Workflow, Cancel Scheduled Job; a list of My Publishing Jobs with their
+Salesforce ID, job name, status, lock, creator, approver and date; a job's files grouped by category and entity type
+with path, preview date, modifier and file status; Remove selected from Job, Split selected items to a new Job, Export
+Job, Email Workflow):
+
+> 这是一个workflow manager的案例，我们需要可以知道自己有哪些文件可以添加到workflow里去，workflow可以有多个，比如案例中有
+> 三个，但是每个添加的file不同，或许是做的同一个ticket的先后顺序还是别的情况，workflow必须实例化，可以把自己checkoutfile都
+> 新建不同的workflow ticket去deploy
+
+**Read as:** a workflow is an instance (a job): a ticket, a name, its own files, its own step. Your checked-out files
+not yet in a job are listed as the ones you can add; you make a job from some of them (or add them to a job of yours
+still in progress), and each job moves on its own: to the previews, to production, done. Several jobs may share a
+ticket (batch 1, 2, 3). A file is in one job at a time. Today's single workflow (已签入 → 预览站 → 正式站, check-ins with
+a message) becomes these jobs; its check-ins map onto them.
+
+Draft WPs, to be fixed with the owner's answers (approval, scheduling, ticket, email):
+
+| WP   | What                                                                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| WP38 | Jobs in the database (ticket, name, step, creator, approver, dates; a file's job), today's check-ins and stages carried over                |
+| WP39 | 我的文件: the files you can add; 新建任务 (ticket, name) from the chosen ones or 加到任务; a job's files grouped by kind, with their states |
+| WP40 | A job's steps and buttons (the bar of steps, return, terminate); preview and production per job (production: only that job's files)         |
+| WP41 | In a job: remove the chosen files, split them into a new job, export the job; the list of jobs (mine / all, by step, search, pages)         |
+| WP42 | Approval and scheduling, as the owner decides                                                                                               |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -278,6 +332,14 @@ tabs.
 | WP32 | done                                         | v6.0.0, website v2.4.0 |
 | WP33 | done                                         | v6.0.0                 |
 | WP34 | done                                         | v6.0.0                 |
+| WP35 | done                                         | v6.1.0                 |
+| WP36 | done                                         | v6.1.0                 |
+| WP37 | done                                         | v6.1.0                 |
+| WP38 | planned (S7: waits for the owner's answers)  |                        |
+| WP39 | planned                                      |                        |
+| WP40 | planned                                      |                        |
+| WP41 | planned                                      |                        |
+| WP42 | planned                                      |                        |
 
 ## 阶段总结 S6 (v6.0.0, 2026-11-16)
 

@@ -84,7 +84,10 @@
       "code": "Built-in template code"
     },
     "busy": "Deploying",
-    "downloadVersion": "Download this version"
+    "downloadVersion": "Download this version",
+    "preview": "Preview",
+    "previewDraft": "Open its draft in a new tab",
+    "previewSaves": "Saves your changes (a draft) first, then opens the preview in a new tab"
   },
   "fields": {
     "linkHint": "/works/… or https://…",
@@ -184,7 +187,9 @@
     "allStyles": "All styles (by name)",
     "pickStyle": "Use this style",
     "style": "Style",
-    "builtinStyle": "Built-in template (code)"
+    "builtinStyle": "Built-in template (code)",
+    "colUses": "Used on",
+    "sharedOn": "Shared · {n, plural, one {# page} other {# pages}}"
   },
   "component": {
     "saved": "Saved (draft): switch the CMS preview to Drafts to see it",
@@ -199,14 +204,22 @@
     "cancel": "Cancel",
     "deleted": "Block deleted (draft)",
     "save": "Save",
-    "usedOn": "On these pages (its zone and style are changed in the page's editor)",
-    "unused": "On no page yet: add it with “Or add an existing block” in a page's editor.",
-    "previewDraft": "Preview (drafts)",
-    "openTab": "Open in a new tab",
-    "previewTitle": "Block preview",
     "noPreview": "This block is on no page, so there is no preview.",
-    "builtin": "Built-in template (code)",
-    "placedAs": "{zone} zone · style: {style}"
+    "builtin": "Built-in template (code)"
+  },
+  "uses": {
+    "link": "On {n, plural, one {# page} other {# pages}}",
+    "none": "On no page yet",
+    "title": "Pages that use “{name}” ({n})",
+    "search": "Find by address or title",
+    "page": "Page",
+    "places": "Where on the page",
+    "place": "{zone} zone · style: {style}",
+    "here": "This page",
+    "inactive": "Inactive",
+    "draft": "Draft preview",
+    "noMatch": "No page like that.",
+    "help": "Changing this block's content changes it on every one of these pages. Its zone and style on each are changed in that page's editor."
   },
   "global": {
     "back": "Back to the preview",

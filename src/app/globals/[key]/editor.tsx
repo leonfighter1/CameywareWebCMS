@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { type Context, FieldsEditor } from "@/components/fields";
 import { Editable, FileBar, isMine } from "@/components/files";
+import { PreviewButton } from "@/components/preview";
 import { report } from "@/components/result";
 import type { Field } from "@/lib/catalog";
 import type { FileView, VersionView } from "@/lib/present";
@@ -23,6 +24,7 @@ export function GlobalEditor({
   data,
   ctx,
   back,
+  preview,
 }: {
   me: string;
   file: FileView;
@@ -35,11 +37,26 @@ export function GlobalEditor({
   data: Record<string, unknown>;
   ctx: Context;
   back?: string;
+  /** Its draft on the preview: the page the Edit came from, or the home page. */
+  preview: string;
 }) {
   const t = useTranslations("global");
   const router = useRouter();
   const [value, setValue] = useState(data);
   const [busy, setBusy] = useState(false);
+  const mine = isMine(file, me);
+  const save = async () => {
+    setBusy(true);
+    const ok = report(await saveGlobalAction(name, value), t("saved"));
+    setBusy(false);
+    if (ok) router.refresh();
+    return ok;
+  };
+  const saveButton = (size?: "xs") => (
+    <Button loading={busy} onClick={save} disabled={!mine} size={size}>
+      {t("save")}
+    </Button>
+  );
   return (
     <Stack gap="lg">
       <SegmentedControl
@@ -84,25 +101,19 @@ export function GlobalEditor({
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
+          <PreviewButton
+            href={preview}
+            save={mine && JSON.stringify(value) !== JSON.stringify(data) ? save : undefined}
+          />
+          {saveButton("xs")}
         </Group>
       </Group>
       <FileBar file={file} me={me} versions={versions} />
       <Card withBorder maw={1100}>
-        <Editable open={isMine(file, me)}>
+        <Editable open={mine}>
           <Stack>
             <FieldsEditor fields={fields} value={value} onChange={setValue} ctx={ctx} />
-            <Group justify="flex-end">
-              <Button
-                loading={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  if (report(await saveGlobalAction(name, value), t("saved"))) router.refresh();
-                  setBusy(false);
-                }}
-              >
-                {t("save")}
-              </Button>
-            </Group>
+            <Group justify="flex-end">{saveButton()}</Group>
           </Stack>
         </Editable>
       </Card>

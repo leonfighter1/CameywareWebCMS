@@ -4,7 +4,7 @@ import { Frame } from "@/components/frame";
 import { fieldsOf, ICONS, TYPES } from "@/lib/catalog";
 import { descriptionIn, labelIn } from "@/lib/labels";
 import { previewBase } from "@/lib/hosts";
-import { fileViews, versionView } from "@/lib/present";
+import { fileViews, pageUses, versionView } from "@/lib/present";
 import { database, host, language, requireUser } from "@/lib/server";
 import { getComponent, getGlobal, getPage, listTemplates, usedOn } from "@/lib/store";
 import { files, versions } from "@/lib/workflow";
@@ -35,6 +35,7 @@ export default async function ComponentPage({
   const file = fileViews(all, lang)[`component:${id}`];
   if (!file) notFound();
   const preview = previewBase(await host());
+  const site = `${preview}/${lang === "en" ? "en" : "zh"}`;
   const shownOn = (fromPage && (await getPage(pg, fromPage))) || pages[0];
   const items = (
     (works?.data as { items?: { slug: string; name?: { zh?: string; en?: string } }[] })?.items ?? []
@@ -56,21 +57,13 @@ export default async function ComponentPage({
         typeHelp={def ? descriptionIn(def, lang) : ""}
         fields={fieldsOf(c.type)}
         ctx={{ works: items, icons: ICONS }}
-        pages={pages.flatMap((p) =>
-          p.blocks
-            .filter((b) => b.id === id)
-            .map((b) => ({
-              id: p.id,
-              path: p.path,
-              zone: b.zone,
-              style: b.style ? (templates.find((x) => x.id === b.style)?.name ?? b.style) : builtin,
-            })),
-        )}
-        preview={
-          shownOn
-            ? `${preview}/${lang === "en" ? "en" : "zh"}${shownOn.path}?view=draft#${c.data.anchor ?? ""}`
-            : undefined
-        }
+        uses={pageUses(pages, id, {
+          lang,
+          site,
+          anchor: c.data.anchor,
+          style: (s) => (s ? (templates.find((x) => x.id === s)?.name ?? s) : builtin),
+        })}
+        preview={shownOn ? `${site}${shownOn.path}?view=draft#${c.data.anchor ?? ""}` : undefined}
         back={back?.startsWith(preview) ? back : undefined}
       />
     </Frame>
