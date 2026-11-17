@@ -45,7 +45,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { confirm, isMine, jobModal, StateBadges } from "@/components/files";
+import { confirm, isMine, jobModal, StateBadges, takeFiles } from "@/components/files";
 import { FilePicker } from "@/components/file-picker";
 import { PageTransfer } from "@/components/page-transfer";
 import { report } from "@/components/result";
@@ -58,7 +58,6 @@ import {
   discardAction,
   putBackAction,
   rebuildCmsSiteAction,
-  takeAction,
 } from "./actions";
 import { NEW_TAB } from "@/components/links";
 
@@ -500,7 +499,7 @@ function FileList({
         <Button
           size="xs"
           disabled={!free.length}
-          onClick={async () => done(report(await takeAction(items(free)), tf("taken")))}
+          onClick={async () => done(await takeFiles(items(free), tf))}
         >
           {t("withCount", { label: tf("take"), n: free.length })}
         </Button>
@@ -515,7 +514,7 @@ function FileList({
               body: t("takeOverMany", { n: theirs.length }),
               label: tf("takeOver"),
               cancel: tf("cancel"),
-              run: async () => done(report(await takeAction(items(theirs), true), tf("taken"))),
+              run: async () => done(await takeFiles(items(theirs), tf, true)),
             })
           }
         >

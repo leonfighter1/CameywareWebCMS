@@ -29,9 +29,11 @@ import { exportDoc, fromXml, importDoc, parseUpload, toXml } from "@/lib/transfe
 import {
   backToCheckIn,
   checkIn,
+  dependencies,
   discard,
   restoreVersion,
   rollbackProduction,
+  takeTheirParts,
   terminate,
   toPreview,
   toProduction,
@@ -501,6 +503,36 @@ describe("templates (component styles)", () => {
     await discard(pg, [{ kind: "template", id }], "kim");
     expect(await fileState(pg, "template", id)).toBeUndefined();
     expect(await changes(pg)).toEqual([]);
+  });
+
+  // The owner, 2026-11-16: a page whose new style nobody held couldn't be added to the workflow (「弹框说不能添加」).
+  it("takes a page's new style along when nobody holds it", async () => {
+    const id = await createTemplate(pg, "hero_banner", "free_style", CENTRED, "kim");
+    await putBack(pg, [{ kind: "template", id }], "kim");
+    await take(pg, homeItem, "lee");
+    await styleHero(pg, id, "lee");
+    await checkIn(pg, homeItem, "带上没人拿的样式", "lee");
+    expect(await fileState(pg, "template", id)).toMatchObject({
+      status: "in_workflow",
+      owner: "lee",
+      stage: "checked_in",
+    });
+  });
+
+  // The owner, 2026-11-16: 依赖 under 我的文件, ticked (yours) by default, unticked for someone else to take a while.
+  it("lists a page's dependencies with where each stands and what needs it; the free ones come with the page", async () => {
+    const kims = await createTemplate(pg, "hero_banner", "kims_style", CENTRED, "kim");
+    await take(pg, homeItem, "lee");
+    await styleHero(pg, kims, "lee");
+    expect(await dependencies(pg, homeItem, "lee")).toEqual([
+      { kind: "template", id: kims, state: "others", owner: "kim", from: homeItem },
+    ]);
+    // Kim puts it back: nobody's, and taken for lee with the page.
+    await putBack(pg, [{ kind: "template", id: kims }], "kim");
+    expect((await dependencies(pg, homeItem, "lee"))[0]).toMatchObject({ state: "free" });
+    expect(await takeTheirParts(pg, homeItem, "lee")).toEqual([{ kind: "template", id: kims }]);
+    expect((await dependencies(pg, homeItem, "lee"))[0]).toMatchObject({ state: "mine", owner: "lee" });
+    expect(await takeTheirParts(pg, homeItem, "lee")).toEqual([]);
   });
 });
 

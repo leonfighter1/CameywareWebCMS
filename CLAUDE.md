@@ -42,7 +42,8 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
 5. **A file is changed only by whoever checked it out** (S2, the owner, 2026-11-15; since S3 a page, a block, a template,
    a global, or a resource bundle: the UI texts of one namespace, T2; since S4 a layout too): every save goes through
    `mustHold` (`src/lib/files.ts`); a file checked in is locked in the workflow until it leaves it. A page takes its new
-   blocks, styles and CMS layout along at every step (`newPartsOf`, `withTheirParts`). Production is each
+   blocks, styles and CMS layout along at every step (`newPartsOf`, `withTheirParts`): its 依赖 (`dependencies`, v9.3.0),
+   taken with it when nobody holds them, listed under 在我名下 on 我的文件. Production is each
    file's `prod_revision_id`; preview is production with the files at 预览站; the CMS's 已签入 is production with every
    workflow file. A step that builds moves its files only once the build succeeded (deploy()'s onSuccess). 推到正式站
    commits `content/site.json` alone on top of GitHub's main, from a temporary worktree, and pushes it (C2): a

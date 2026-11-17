@@ -5,7 +5,8 @@
  * filled in. Every name has its English beside it (label_en, description_en, hint_en) for the CMS in English.
  */
 import sanitize from "sanitize-html";
-import { type Both, type Msg, msg } from "./words";
+import { labelIn } from "./labels";
+import { type Both, type Lang, type Msg, msg } from "./words";
 import { isL10n, type L10n, LOCALES } from "@/generated/model";
 import catalog from "@/generated/types.json";
 
@@ -54,6 +55,9 @@ export const both = (d: { label: string; label_en?: string } | undefined, fallba
 });
 
 export { descriptionIn, hintIn, labelIn } from "./labels";
+
+/** A block type's name in [lang] (its key where the catalog lacks it). */
+export const typeName = (type: string, lang: Lang) => (TYPES[type] ? labelIn(TYPES[type], lang) : type);
 
 /** A block type's fields, the common ones (anchor, room above) after its own. */
 export const fieldsOf = (type: string): Field[] => [...(TYPES[type]?.fields ?? []), ...COMMON];

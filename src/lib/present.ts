@@ -5,8 +5,8 @@
 import type { Field } from "./catalog";
 import { labelIn } from "./labels";
 import type { Bell, Job } from "./jobs";
-import type { PageRow } from "./store";
-import type { FileInfo, Version } from "./workflow";
+import type { PageRow, Working } from "./store";
+import type { Dependency, FileInfo, Version } from "./workflow";
 import type { Lang } from "./words";
 import { pick } from "@/generated/model";
 
@@ -155,3 +155,49 @@ export const fileHref = (kind: FileInfo["kind"], id: string) =>
     bundle: `/bundles/${encodeURIComponent(id)}`,
     code: `/templates/builtin/${id}`,
   })[kind];
+
+/**
+ * A dependency (依赖) as 我的文件 and 加入工作流 show it: its name and editor, the files it comes from, and where it is
+ * (the owner: 「用户不知道去哪里找」): its folder in the explorer, with its type's name for a block or a style.
+ */
+export type DependencyView = {
+  kind: Dependency["kind"];
+  id: string;
+  label: string;
+  href: string;
+  state: Dependency["state"];
+  owner?: string;
+  from: { label: string; href: string }[];
+  at: string;
+  type?: string;
+};
+
+/** [deps] in [lang]: names from [work] (workingStates), a type's name by [typeName]. */
+export function dependencyViews(
+  deps: Dependency[],
+  work: Map<string, Working>,
+  lang: Lang,
+  typeName: (type: string) => string,
+): DependencyView[] {
+  const name = (i: { kind: string; id: string }) => work.get(`${i.kind}:${i.id}`)?.label[lang] ?? i.id;
+  return deps.map((d) => {
+    const type = (work.get(`${d.kind}:${d.id}`)?.state as { type?: string } | undefined)?.type;
+    const folder =
+      d.kind === "component"
+        ? "content/components"
+        : d.kind === "template"
+          ? "views/styles"
+          : "views/layouts";
+    return {
+      kind: d.kind,
+      id: d.id,
+      label: name(d),
+      href: fileHref(d.kind, d.id),
+      state: d.state,
+      owner: d.owner,
+      from: d.from.map((f) => ({ label: name(f), href: fileHref(f.kind, f.id) })),
+      at: type && d.kind !== "layout" ? `${folder}/${type}` : folder,
+      ...(type && d.kind !== "layout" && { type: typeName(type) }),
+    };
+  });
+}

@@ -5,14 +5,25 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FileTable, keyOf } from "@/components/file-table";
+import { DependencyTable } from "@/components/dependencies";
 import { confirm, jobModal } from "@/components/files";
 import { JobTable } from "@/components/job-table";
 import { NEW_TAB } from "@/components/links";
 import { report } from "@/components/result";
-import type { FileView, JobView } from "@/lib/present";
+import type { DependencyView, FileView, JobView } from "@/lib/present";
 import { discardAction, putBackAction } from "../actions";
 
-export function Mine({ me, held, jobs }: { me: string; held: FileView[]; jobs: JobView[] }) {
+export function Mine({
+  me,
+  held,
+  deps,
+  jobs,
+}: {
+  me: string;
+  held: FileView[];
+  deps: DependencyView[];
+  jobs: JobView[];
+}) {
   const t = useTranslations("mine");
   const tf = useTranslations("files");
   const router = useRouter();
@@ -88,6 +99,17 @@ export function Mine({ me, held, jobs }: { me: string; held: FileView[]; jobs: J
           extra={{ title: t("since"), cell: (f) => <Text size="xs">{f.since}</Text> }}
           empty={t("noneHeld")}
         />
+        {!!deps.length && (
+          <Stack gap={4} mt="lg" data-testid="mine-deps">
+            <Title order={3} fz={16}>
+              {tf("depTitle", { n: deps.length })}
+            </Title>
+            <Text size="xs" c="dimmed">
+              {tf("depHelp")}
+            </Text>
+            <DependencyTable deps={deps} tick />
+          </Stack>
+        )}
       </Card>
       <Card withBorder>
         <Group justify="space-between" mb="sm">

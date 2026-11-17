@@ -25,8 +25,29 @@ Rules learned here, one per mistake; add with `add-mistake.ps1 -Project .`.
 17. A walk copy of the website (SITE_REPO clone from a local bare repository) gets its own npm ci, never a junction to the real node_modules; remove a junction with cmd rmdir, never rm -rf
 18. Decide whether discard removes a file by file.fresh (no production version), never by its change; every missing file gets the CMS's not-found page
 19. A test file whose beforeEach seeds a fresh database relies on vitest.config's hookTimeout (30 s); never lower it
+20. A refusal about a related file names it by its label, says whose it is and where to act; a part nobody holds is taken along, never treated as someone else's
+21. A control whose state comes back through a refresh shows the new state and stays disabled until the new props arrive (remember the props it was set against, never clear it in an effect)
+22. On Windows, never pass /dev/stdin to node as a path: write the text with the Write tool and pass the file's path
 
 ## Log
+
+### 2026-11-16: node read /dev/stdin in Git Bash as a symlink stub
+- **Symptom:** A heredoc piped to node -e with /dev/stdin as the file wrote '!<symlink>' and NUL bytes into dependencies.tsx
+- **Root cause:** On Windows Git Bash /dev/stdin is a Cygwin symlink; node's readFileSync reads the stub file, not the pipe
+- **Fix:** Wrote the text with the Write tool to the scratchpad and passed its path; cut the stub off by its marker
+- **Rule:** On Windows, never pass /dev/stdin to node as a path: write the text with the Write tool and pass the file's path (Rule 22)
+
+### 2026-11-16: A tick acted on its old state while the refresh was on its way
+- **Symptom:** In the 依赖 walk a second click on the style's tick put back a file already put back: 有些文件不在你名下
+- **Root cause:** the checkbox showed the server's state; between the action's end and router.refresh's new props it still showed the old one, enabled
+- **Fix:** DependencyTable keeps the changing row (with the props it was set against): shown changed and disabled until new props arrive; no setState in an effect (react-hooks lint)
+- **Rule:** A control whose state comes back through a refresh shows the new state and stays disabled until the new props arrive (remember the props it was set against, never clear it in an effect) (Rule 21)
+
+### 2026-11-16: A page's new style nobody held refused its check-in with an empty name
+- **Symptom:** The owner added /test/ and its blocks to the workflow and was refused: 页面用的新样式在 — 名下 (no name of the style, no holder, nowhere to look)
+- **Root cause:** checkIn took only the parts the author held; a part nobody held fell into the 'someone else's' branch with owner null and its id
+- **Fix:** dependencies() (workflow.ts) tells each new part's state (mine, free, others, workflow, gone) and the files needing it; check-in takes free ones for the author; a refusal names the file and its holder and points to 我的文件 → 依赖; taking a page takes its free dependencies
+- **Rule:** A refusal about a related file names it by its label, says whose it is and where to act; a part nobody holds is taken along, never treated as someone else's (Rule 20)
 
 ### 2026-11-16: beforeEach seeding a fresh database timed out under the full suite
 - **Symptom:** names.test and pages-s9.test: Hook timed out in 10000ms at beforeEach (freshDb + seedIfEmpty), only when every test file ran at once

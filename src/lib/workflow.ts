@@ -29,6 +29,7 @@ import {
   mustHold,
   mustHoldAll,
   type Stage,
+  take,
 } from "./files";
 import {
   busyItems,
@@ -182,38 +183,91 @@ async function newPartsOf(db: Pg, i: Item, states: Map<string, FileRow>): Promis
   return newOf(db, parts, states);
 }
 
+/** A file that files need and production lacks, how it stands for the one asking, and the files that need it. */
+export type Dependency = Item & {
+  /** mine: the asker's; free: nobody's; others: someone else's; workflow: in a job already; gone: no longer there. */
+  state: "mine" | "free" | "others" | "workflow" | "gone";
+  owner?: string;
+  from: Item[];
+};
+
 /**
- * 签入: [items], every one checked out by [author], into the workflow at 已签入 with [message]. A page brings its new
- * blocks, the new templates it places them with and its new layout that are also [author]'s; a new one someone else
- * holds, or one not coming along, refuses it.
+ * 依赖 (the owner, 2026-11-16: 「可以用 dependency(依赖)去指代, 比如放到下面， 自动打勾」, 「默认自动打勾 和checkout」):
+ * what [items] can't be shown without that production lacks (a page's new blocks, the new styles it places them with,
+ * its new layout), each once, with the files among [items] that need it. 我的文件 lists them under the files they come
+ * from; taking a page takes those nobody holds (takeTheirParts); a check-in takes them along.
+ */
+export async function dependencies(db: Pg, items: Item[], author: string): Promise<Dependency[]> {
+  const states = await fileStates(db);
+  const found = new Map<string, Dependency>();
+  for (const from of items)
+    for (const part of await newPartsOf(db, from, states)) {
+      const known = found.get(keyOf(part));
+      const by = { kind: from.kind, id: from.id };
+      if (known) {
+        if (!known.from.some((f) => keyOf(f) === keyOf(by))) known.from.push(by);
+        continue;
+      }
+      const f = states.get(keyOf(part));
+      found.set(keyOf(part), {
+        ...part,
+        state: !f
+          ? "gone"
+          : f.status === "in_workflow"
+            ? "workflow"
+            : f.status === "available"
+              ? "free"
+              : f.owner === author
+                ? "mine"
+                : "others",
+        owner: f?.owner ?? undefined,
+        from: [by],
+      });
+    }
+  return [...found.values()];
+}
+
+/** The files [items] need that nobody holds, taken for [by] (依赖, ticked by default); those taken. */
+export async function takeTheirParts(db: Pg, items: Item[], by: string): Promise<Item[]> {
+  const free = (await dependencies(db, items, by))
+    .filter((d) => d.state === "free")
+    .map(({ kind, id }) => ({ kind, id }));
+  if (free.length) await take(db, free, by);
+  return free;
+}
+
+/**
+ * 签入: [items], every one checked out by [author], into the workflow at 已签入 with [message], with their dependencies:
+ * nobody's are taken for [author] (the owner: 「当然也可以自动」); one someone else holds, or one gone, refuses it, by
+ * its name and where to take it over.
  */
 export async function checkIn(db: Pg, items: Item[], message: string, author: string): Promise<number> {
   if (!message.trim()) throw new CmsError("errors.checkinMessage");
   await mustHoldAll(db, items, author);
-  const states = await fileStates(db);
-  const wanted = new Map(items.map((i) => [keyOf(i), i]));
-  const problems: Detail[] = [];
-  const queue = [...items];
-  while (queue.length) {
-    for (const part of await newPartsOf(db, queue.shift()!, states)) {
-      const f = states.get(keyOf(part));
-      if (wanted.has(keyOf(part)) || f?.status === "in_workflow") continue;
-      if (f?.status === "checked_out" && f.owner === author) {
-        wanted.set(keyOf(part), part);
-        queue.push(part);
-      } else
-        problems.push(
-          part.kind === "template"
-            ? msg("errors.templateNotComing", { template: part.id, owner: f?.owner ?? "—" })
-            : part.kind === "layout"
-              ? msg("errors.layoutNotComing", { layout: part.id, owner: f?.owner ?? "—" })
-              : msg("errors.blockNotComing", { block: part.id, owner: f?.owner ?? "—" }),
-        );
-    }
+  const given = new Set(items.map(keyOf));
+  const deps = (await dependencies(db, items, author)).filter((d) => !given.has(keyOf(d)));
+  const blocked = deps.filter((d) => d.state === "others" || d.state === "gone");
+  if (blocked.length) {
+    const work = await workingStates(db);
+    const name = (i: Item) => work.get(keyOf(i))?.label ?? { zh: i.id, en: i.id };
+    const problems: Detail[] = blocked.map((o) =>
+      o.state === "gone"
+        ? msg("errors.partGone", { id: o.id })
+        : o.kind === "template"
+          ? msg("errors.templateNotComing", { template: name(o), owner: o.owner ?? "" })
+          : o.kind === "layout"
+            ? msg("errors.layoutNotComing", { layout: name(o), owner: o.owner ?? "" })
+            : msg("errors.blockNotComing", { block: name(o), owner: o.owner ?? "" }),
+    );
+    throw new CmsError("errors.checkinIncomplete", undefined, problems);
   }
-  if (problems.length) throw new CmsError("errors.checkinIncomplete", undefined, problems);
+  const along = deps
+    .filter((d) => d.state === "mine" || d.state === "free")
+    .map(({ kind, id }) => ({ kind, id }));
+  const free = deps.filter((d) => d.state === "free").map(({ kind, id }) => ({ kind, id }));
   return db.transaction(async (tx) => {
-    const list = [...wanted.values()];
+    if (free.length) await take(tx, free, author);
+    const list = [...items.map(({ kind, id }) => ({ kind, id })), ...along];
     const { checkin, revisions } = await recordCheckin(tx, list, message, author);
     for (const i of list)
       await tx.query(

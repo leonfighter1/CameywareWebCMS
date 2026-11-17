@@ -87,7 +87,21 @@
     "previewSaves": "先保存你的修改（草稿），再在新标签页打开预览",
     "splitTitle": "拆成新任务（{n} 个文件）",
     "previewedIn": "上过预览站：第 {list} 版",
-    "nameRule": "只用英文字母、数字、_ 和 -，不带中文和空格（内容可以是中文）"
+    "nameRule": "只用英文字母、数字、_ 和 -，不带中文和空格（内容可以是中文）",
+    "depTitle": "依赖（{n}）",
+    "depHelp": "你名下的页面要用、还没发布过的新区块、新样式和新布局。默认勾上：拿取到你名下，页面加入工作流时一起加入。取消勾选就放回，别人临时要用可以拿取；页面加入工作流时，没人拿着的会自动拿取。",
+    "depFrom": "来自",
+    "depWhere": "位置",
+    "depNone": "你名下的页面没有要一起加入的依赖。",
+    "depTake": "拿取 {name}（依赖）",
+    "depState": {
+      "mine": "在你名下",
+      "free": "没人拿取",
+      "others": "在 {owner} 名下",
+      "workflow": "已在工作流里",
+      "gone": "已经不在了"
+    },
+    "takenWithDeps": "已拿取；页面要用的 {n} 个依赖也拿取到你名下了（见“我的文件”）"
   },
   "fields": {
     "linkHint": "/works/… 或 https://…",
@@ -232,7 +246,7 @@
     "lead": "在你名下的文件：只有你能改。选几个加入工作流（新建任务，或加到你进行中的任务），也可以放回（修改留着，谁都能拿取）或丢弃（回到正式站的版本）。",
     "held": "在我名下（{n}）",
     "checkIn": "加入工作流（{n}）",
-    "help": "页面上还没发布过的新区块、新样式和新布局，会随页面一起加入。",
+    "help": "页面上还没发布过的新区块、新样式和新布局是它的依赖：列在下面，随页面一起加入。",
     "since": "拿取于",
     "noneHeld": "现在没有文件在你名下。在“内容树”里勾选文件拿取，或在文件的编辑页里“拿取”。",
     "jobs": "我的任务（{n}）",
@@ -305,7 +319,7 @@
     "approver": "审批人",
     "modified": "修改时间",
     "newJob": "新建任务",
-    "joinHelp": "{n} 个文件加入工作流：加入后锁定，CMS 预览马上能看到。页面上还没发布过的新区块、新样式和新布局（在你名下的）会一起加入。",
+    "joinHelp": "{n} 个文件加入工作流：加入后锁定，CMS 预览马上能看到。页面的依赖（还没发布过的新区块、新样式和新布局，列在下面）一起加入。",
     "splitHelp": "把选的 {n} 个文件（和它们页面上的新部分）拆成一个新任务，留在同一步。",
     "filesCount": "{n} 个文件",
     "cancel": "取消",
@@ -413,7 +427,18 @@
     "buildingBody": "完成之前不能修改这个任务。只改了内容时几秒就好，代码改了要构建一两分钟；好了这个窗口会自己关上。",
     "buildDone": "部署完成",
     "buildFailed": "部署失败",
-    "buildFailedHelp": "任务留在原来那一步；在“记录”下面点这次部署看日志。"
+    "buildFailedHelp": "任务留在原来那一步；在“记录”下面点这次部署看日志。",
+    "takeOverAll": "接手（{n}）",
+    "tookOver": "已接手：它们会一起加入",
+    "deps": "依赖（{n}）：随页面一起加入",
+    "depsBlocked": "有依赖在别人名下或已经不在了：先接手或换掉，才能加入工作流。",
+    "depGoes": {
+      "mine": "在你名下：一起加入",
+      "free": "没人拿取：自动拿取，一起加入",
+      "others": "在 {owner} 名下：先接手",
+      "workflow": "已在工作流里：随它的任务",
+      "gone": "已经不在了：在页面编辑里换掉"
+    }
   },
   "bell": {
     "summary": "{n, plural, =0 {没有新通知} other {# 条新通知}}",
@@ -525,8 +550,8 @@
     "productionBusy": "正式站正在部署，等它完成再试",
     "filesGone": "有些文件找不到了",
     "checkinMessage": "请写一句签入说明",
-    "blockNotComing": "页面上的新区块 {block} 在 {owner} 名下，没法一起签入：先接手它",
-    "checkinIncomplete": "没有签入：页面的新区块要一起签入",
+    "blockNotComing": "页面上的新区块「{block}」在 {owner} 名下：到“我的文件”下面的“依赖”里勾选接手（或在它的编辑页接手），才能和页面一起加入",
+    "checkinIncomplete": "没有加入工作流：页面要和它的依赖一起加入，有的还不能一起加入",
     "fileBusy": "「{id}」正在部署，等它完成",
     "notCheckedIn": "「{id}」不在“已签入”这一步",
     "notOnPreview": "「{id}」不在预览站这一步",
@@ -562,13 +587,13 @@
     "templateName": "请给模板起个名字",
     "noTemplate": "没有模板「{id}」",
     "templateInUse": "这个样式还有页面在用",
-    "templateNotComing": "页面用的新样式 {template} 在 {owner} 名下，没法一起签入：先接手它",
+    "templateNotComing": "页面用的新样式「{template}」在 {owner} 名下：到“我的文件”下面的“依赖”里勾选接手（或在它的编辑页接手），才能和页面一起加入",
     "templateMissingAt": "页面 {path} 的区块 {block} 用的样式 {template} 不在这一版里：把它一起推",
     "layoutName": "请给布局起个名字",
     "layoutNotSaved": "布局没有保存",
     "noLayout": "没有布局「{id}」",
     "layoutInUse": "这个布局还有页面在用",
-    "layoutNotComing": "页面用的新布局 {layout} 在 {owner} 名下，没法一起签入：先接手它",
+    "layoutNotComing": "页面用的新布局「{layout}」在 {owner} 名下：到“我的文件”下面的“依赖”里勾选接手（或在它的编辑页接手），才能和页面一起加入",
     "layoutMissingAt": "页面 {path} 用的布局 {layout} 不在这一版里：把它一起推",
     "importNoComponent": "没有组件「{path}」：先上传或新建它",
     "codeSuperadmin": "只有超级管理员能拿取和替换内置模板的代码",
@@ -592,7 +617,8 @@
     "uploadNoPage": "没有叫「{name}」的页面：文件名要和页面名一样（就是下载时的文件名）",
     "uploadOtherPage": "文件「{file}」不是所选页面「{page}」的：文件名要和页面名一样",
     "uploadNotPage": "「{file}」不是页面文件",
-    "fileName": "文件名「{name}」只能用英文字母、数字、_ 和 -，不能有中文或空格（内容可以是中文）"
+    "fileName": "文件名「{name}」只能用英文字母、数字、_ 和 -，不能有中文或空格（内容可以是中文）",
+    "partGone": "页面用的 {id} 已经不在了：先在页面编辑里把它换掉或拿掉"
   },
   "codeCheck": {
     "empty": "代码是空的",

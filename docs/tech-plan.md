@@ -392,6 +392,27 @@ takes no Esc meanwhile (rule 15).
 | ---- | -------------------------------------------------------------------------------- |
 | WP54 | `FilePicker`; the new-file dialog's starts and its pick (pages, styles, layouts) |
 
+## v9.3.0 (medium, after v9.2.0): a page's dependencies (依赖)
+
+**The owner (2026-11-16)**, adding /test/ and its blocks: 「我尝试添加四个在我名下的file 弹框说不能添加」, then
+「你需要更加明了指出是哪个文件需要checkout 然后可以手动添加，现在的消息太不明确了，用户不知道去哪里找」, 「当然也可以自动」,
+「最好是有一个新的tab告诉用户有一个与之相关的style需要一起push等等之类的话」, and on the plan of a 相关文件 tab: 「可以用
+dependency(依赖)去指代, 比如放到下面， 自动打勾」, 「也可以不打勾，万一别人临时需要呢？ 默认自动打勾 和checkout」.
+
+**The cause:** the page's new style (hero_banner_style) was nobody's; check-in took only the parts the author held and
+refused the rest as someone else's, with no name.
+
+**Built as:** `dependencies` (workflow.ts): each new part a file needs, its state (mine, free, others, workflow, gone)
+and the files needing it; `takeTheirParts` takes the free ones when a page is taken (拿取, a copied page, an upload);
+check-in takes free ones along and names the others' with their holder. 我的文件 lists 依赖 under 在我名下
+(`DependencyTable`: 来自, 位置 as the explorer's folder, the tick = yours: untick puts back, tick takes or takes over);
+加入工作流 lists them with what happens to each (a fourth tab was planned, then put below on the owner's word).
+
+| WP   | What                                                                                      |
+| ---- | ----------------------------------------------------------------------------------------- |
+| WP55 | `dependencies`, `takeTheirParts`; check-in takes free parts, names the others' and holder |
+| WP56 | 依赖 on 我的文件 (ticks take / put back) and in 加入工作流; dependencies off the top list |
+
 ## Status
 
 | WP   | Status                                       | Version                |
@@ -450,6 +471,8 @@ takes no Esc meanwhile (rule 15).
 | WP52 | done                                         | v9.1.0                 |
 | WP53 | done                                         | v9.1.0                 |
 | WP54 | done                                         | v9.2.0                 |
+| WP55 | done                                         | v9.3.0                 |
+| WP56 | done                                         | v9.3.0                 |
 
 ## 阶段总结 S9 (v9.0.0, 2026-11-16)
 

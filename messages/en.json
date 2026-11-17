@@ -87,7 +87,21 @@
     "previewSaves": "Saves your changes (a draft) first, then opens the preview in a new tab",
     "splitTitle": "Split into a new job ({n, plural, one {# file} other {# files}})",
     "previewedIn": "On preview in releases {list}",
-    "nameRule": "English letters, digits, _ and - only, no Chinese or spaces (the content may be in any language)"
+    "nameRule": "English letters, digits, _ and - only, no Chinese or spaces (the content may be in any language)",
+    "depTitle": "Dependencies ({n})",
+    "depHelp": "New blocks, styles and layouts your pages use that were never published. Ticked by default: yours, and they go into the workflow with the page. Untick one to put it back so someone else can take it for a while; when the page goes into the workflow, any nobody holds are taken for you.",
+    "depFrom": "From",
+    "depWhere": "Where",
+    "depNone": "Your pages have no dependencies to take along.",
+    "depTake": "Take {name} (dependency)",
+    "depState": {
+      "mine": "Yours",
+      "free": "Nobody's",
+      "others": "{owner}'s",
+      "workflow": "In the workflow",
+      "gone": "Gone"
+    },
+    "takenWithDeps": "Taken; the {n, plural, one {# dependency} other {# dependencies}} the page uses are yours too (see My files)"
   },
   "fields": {
     "linkHint": "/works/… or https://…",
@@ -232,7 +246,7 @@
     "lead": "Files you hold: only you change them. Put some into the workflow (a new job, or one of yours in progress), or put them back (changes kept, anyone may take them) or discard them (back to production's version).",
     "held": "Checked out by me ({n})",
     "checkIn": "Add to workflow ({n})",
-    "help": "A page's new blocks, styles and layouts never published go in with it.",
+    "help": "The new blocks, styles and layouts a page uses that were never published are its dependencies: listed below, they go with the page.",
     "since": "Checked out",
     "noneHeld": "No file is yours now. Tick files in the content tree and take them, or take one in its editor.",
     "jobs": "My jobs ({n})",
@@ -305,7 +319,7 @@
     "approver": "Approver",
     "modified": "Modified",
     "newJob": "New job",
-    "joinHelp": "{n, plural, one {# file goes} other {# files go}} into the workflow: locked once in, shown at once by the CMS preview. A page's new blocks, styles and layouts never published (that you hold) go in with it.",
+    "joinHelp": "{n, plural, one {# file goes} other {# files go}} into the workflow: locked once in, shown at once by the CMS preview. A page's dependencies (its new blocks, styles and layouts never published, listed below) go in with it.",
     "splitHelp": "The {n, plural, one {# file} other {# files}} picked (and their pages' new parts) become a new job at the same step.",
     "filesCount": "{n, plural, one {# file} other {# files}}",
     "cancel": "Cancel",
@@ -413,7 +427,18 @@
     "buildingBody": "The job can't be changed until this ends. Content alone takes seconds; changed code needs a build of a minute or two. This window closes by itself.",
     "buildDone": "Deployment done",
     "buildFailed": "Deployment failed",
-    "buildFailedHelp": "The job stays at its step; open the deployment under History to read its log."
+    "buildFailedHelp": "The job stays at its step; open the deployment under History to read its log.",
+    "takeOverAll": "Take over ({n})",
+    "tookOver": "Taken over: they go along",
+    "deps": "Dependencies ({n}): go with the pages",
+    "depsBlocked": "Some dependencies are someone else's or gone: take them over or replace them first.",
+    "depGoes": {
+      "mine": "Yours: goes along",
+      "free": "Nobody's: taken for you, goes along",
+      "others": "{owner}'s: take it over first",
+      "workflow": "In the workflow: goes with its job",
+      "gone": "Gone: replace it in the page editor"
+    }
   },
   "bell": {
     "summary": "{n, plural, =0 {No new notifications} one {# new notification} other {# new notifications}}",
@@ -525,8 +550,8 @@
     "productionBusy": "Production is being deployed: try again when it is done",
     "filesGone": "Some files can't be found",
     "checkinMessage": "Write a check-in message",
-    "blockNotComing": "The page's new block {block} is checked out by {owner}, so it can't come along: take it over first",
-    "checkinIncomplete": "Not checked in: a page's new blocks must be checked in with it",
+    "blockNotComing": "The page's new block “{block}” is {owner}'s: tick it under Dependencies in My files to take it over (or take it over in its editor) so it can go with the page",
+    "checkinIncomplete": "Not put into the workflow: a page goes with its dependencies, and some can't go yet",
     "fileBusy": "“{id}” is being deployed: wait until it is done",
     "notCheckedIn": "“{id}” is not at Checked in",
     "notOnPreview": "“{id}” is not on preview",
@@ -562,13 +587,13 @@
     "templateName": "Give the template a name",
     "noTemplate": "No template “{id}”",
     "templateInUse": "Pages still use this style",
-    "templateNotComing": "The new style {template} a page uses is {owner}'s, so it can't come along: take it over first",
+    "templateNotComing": "The new style “{template}” a page uses is {owner}'s: tick it under Dependencies in My files to take it over (or take it over in its editor) so it can go with the page",
     "templateMissingAt": "Page {path}'s block {block} uses style {template}, which isn't in this release: push it too",
     "layoutName": "Give the layout a name",
     "layoutNotSaved": "The layout wasn't saved",
     "noLayout": "No layout “{id}”",
     "layoutInUse": "Pages still use this layout",
-    "layoutNotComing": "The new layout {layout} a page uses is {owner}'s, so it can't come along: take it over first",
+    "layoutNotComing": "The new layout “{layout}” a page uses is {owner}'s: tick it under Dependencies in My files to take it over (or take it over in its editor) so it can go with the page",
     "layoutMissingAt": "Page {path} uses layout {layout}, which isn't in this release: push it too",
     "importNoComponent": "No component “{path}”: upload or create it first",
     "codeSuperadmin": "Only a super administrator can take or replace a built-in template's code",
@@ -592,7 +617,8 @@
     "uploadNoPage": "No page is named “{name}”: the file's name must be the page's name (as it was downloaded)",
     "uploadOtherPage": "The file “{file}” isn't the picked page's (“{page}”): its name must be the page's name",
     "uploadNotPage": "“{file}” isn't a page file",
-    "fileName": "The file name “{name}” may only have English letters, digits, _ and -, no Chinese or spaces (the content may be in any language)"
+    "fileName": "The file name “{name}” may only have English letters, digits, _ and -, no Chinese or spaces (the content may be in any language)",
+    "partGone": "{id}, which the page uses, is gone: replace or remove it in the page editor first"
   },
   "codeCheck": {
     "empty": "The code is empty",

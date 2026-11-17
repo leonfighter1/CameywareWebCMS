@@ -7,11 +7,11 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { closeSession, SESSION_COOKIE } from "@/lib/auth";
 import { startCmsSiteBuild } from "@/lib/deploy";
-import { fileState, type Item, putBack, take } from "@/lib/files";
+import { fileState, type Item, keyOf, putBack, take } from "@/lib/files";
 import { toHant } from "@/lib/hant";
 import { addCodeFiles } from "@/lib/seed";
 import { attempt, coder, database, editor, publisher } from "@/lib/server";
-import { fieldsOf } from "@/lib/catalog";
+import { fieldsOf, typeName } from "@/lib/catalog";
 import { placement, starterLayout } from "@/lib/pages";
 import { insertPlacement, type Target } from "@/lib/rows";
 import {
@@ -41,10 +41,18 @@ import {
   saveTemplate,
   saveText,
   templateProblems,
+  workingStates,
 } from "@/lib/store";
 import { isBuiltinLayout } from "@/generated/layouts";
 import { importDoc, importPageFile, parseUpload } from "@/lib/transfer";
-import { discard, rebuildPreview, restoreVersion, rollbackProduction } from "@/lib/workflow";
+import {
+  dependencies,
+  discard,
+  rebuildPreview,
+  restoreVersion,
+  rollbackProduction,
+  takeTheirParts,
+} from "@/lib/workflow";
 import {
   type Actor,
   addToJob,
@@ -65,7 +73,7 @@ import {
   terminateJob,
 } from "@/lib/jobs";
 import { canPublish } from "@/lib/auth";
-import { bellView, when } from "@/lib/present";
+import { bellView, dependencyViews, when } from "@/lib/present";
 import { CmsError, LANG_COOKIE, type Lang, say, sayAll } from "@/lib/words";
 import type { L10n } from "@/generated/model";
 import { starterTemplate } from "@/generated/template";
@@ -80,6 +88,8 @@ export async function createPageAction(path: string, title: L10n, copyOf?: strin
     const id = copyOf
       ? await pg.transaction((tx) => copyPage(tx, copyOf, { path, title }, user.login))
       : await createPage(pg, { path, title }, user.login);
+    // A copy's new styles and layout nobody holds are yours with it (依赖).
+    if (copyOf) await takeTheirParts(pg, [{ kind: "page", id }], user.login);
     done();
     return id;
   });
@@ -94,8 +104,12 @@ export async function createPageAction(path: string, title: L10n, copyOf?: strin
 export async function uploadPageAction(fileName: string, text: string, apply: boolean, picked?: string) {
   return attempt(async (lang) => {
     const user = await editor();
-    const { page, plan } = await importPageFile(await database(), fileName, text, user.login, apply, picked);
-    if (apply) done();
+    const pg = await database();
+    const { page, plan } = await importPageFile(pg, fileName, text, user.login, apply, picked);
+    if (apply) {
+      await takeTheirParts(pg, [{ kind: "page", id: page }], user.login);
+      done();
+    }
     return {
       page,
       items: plan.items.map((i) => ({ ...i, label: i.label[lang] })),
@@ -297,12 +311,18 @@ export async function saveTextAction(key: string, value: L10n) {
 
 // ---- files: take, put back, discard, versions ---------------------------------------------------------------
 
-/** 拿取, or with [over] 接手 (taking a file someone else has); a built-in template's code, 超级管理员 alone. */
+/**
+ * 拿取, or with [over] 接手 (taking a file someone else has); a built-in template's code, 超级管理员 alone. The 依赖 nobody
+ * holds come along (the owner: 「默认自动打勾 和checkout」): how many.
+ */
 export async function takeAction(items: Item[], over = false) {
   return attempt(async () => {
     const user = items.some((i) => i.kind === "code") ? await coder() : await editor();
-    await take(await database(), items, user.login, over);
+    const pg = await database();
+    await take(pg, items, user.login, over);
+    const along = await takeTheirParts(pg, items, user.login);
     done();
+    return along.length;
   });
 }
 
@@ -384,6 +404,20 @@ export async function addToJobAction(job: number, items: Item[]) {
     await addToJob(await database(), job, items, await actor());
     rebuildFor(items);
     done();
+  });
+}
+
+/**
+ * 加入工作流's 依赖 (the owner, 2026-11-16: 「你需要更加明了指出是哪个文件需要checkout」): what [items] take along, apart
+ * from themselves, each with its name, editor, folder and where it stands for you.
+ */
+export async function dependenciesAction(items: Item[]) {
+  return attempt(async (lang) => {
+    const user = await editor();
+    const pg = await database();
+    const given = new Set(items.map(keyOf));
+    const deps = (await dependencies(pg, items, user.login)).filter((d) => !given.has(keyOf(d)));
+    return dependencyViews(deps, await workingStates(pg), lang, (t) => typeName(t, lang));
   });
 }
 

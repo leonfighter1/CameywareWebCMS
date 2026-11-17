@@ -2,17 +2,40 @@
 /**
  * Into the workflow (S7; the owner, 2026-11-16, after Bell's Publish dialog: 「可以添加到已有的workflow也可以添加到别人的
  * workflow里，默认是自己已有的，也可以新建workflow. 第三个tab是添加到其他人的workflow」; the ticket 「可以不填」): the files
- * chosen, then three tabs: 我的任务 (yours at 进行中, the default), 新建任务, 加到其他人的任务. With [split] (Bell's Split
- * selected items to a new Job): the job's files, those moving marked, into a new job. Opened by `jobModal` (files.tsx).
+ * chosen and their 依赖 (what goes along: 「你需要更加明了指出是哪个文件需要checkout」; one someone else holds taken over
+ * here, or the dialog can't add), then three tabs: 我的任务 (yours at 进行中, the default), 新建任务, 加到其他人的任务.
+ * With [split] (Bell's Split selected items to a new Job): the job's files, those moving marked, into a new job. Opened
+ * by `jobModal` (files.tsx).
  */
-import { Box, Button, Group, Radio, ScrollArea, Stack, Table, Tabs, Text, TextInput } from "@mantine/core";
+import {
+  Alert,
+  Box,
+  Button,
+  Group,
+  Radio,
+  ScrollArea,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { IconArrowRight } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { addToJobAction, createJobAction, openJobsAction, splitJobAction } from "@/app/actions";
+import {
+  addToJobAction,
+  createJobAction,
+  dependenciesAction,
+  openJobsAction,
+  splitJobAction,
+} from "@/app/actions";
 import type { Kind } from "@/lib/files";
+import type { DependencyView } from "@/lib/present";
 import type { Result } from "@/lib/server";
+import { DependencyTable } from "./dependencies";
 import { keyOf } from "./file-table";
+import { takeFiles } from "./files";
 import { report } from "./result";
 
 /** A file chosen: its name where the caller has it. */
@@ -123,21 +146,31 @@ export function JobForm({
   const [jobs, setJobs] = useState<OpenJob[] | null>(null);
   const [pick, setPick] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deps, setDeps] = useState<DependencyView[]>([]);
+  const loadDeps = () =>
+    dependenciesAction(items.map(({ kind, id }) => ({ kind, id }))).then(
+      (r) => r.ok && setDeps(r.value ?? []),
+    );
   useEffect(() => {
     if (split) return;
+    void loadDeps();
     void openJobsAction().then((r) => {
       const all = r.ok ? (r.value ?? []) : [];
       setJobs(all);
       // None of yours yet: a new one.
       if (!all.some((j) => j.mine)) setTab("new");
     });
+    // Once, as it opens: its files don't change while it is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [split]);
   const mine = (jobs ?? []).filter((j) => j.mine);
   const others = (jobs ?? []).filter((j) => !j.mine);
   const making = !!split || tab === "new";
-  const ready = making
-    ? !!name.trim()
-    : pick !== null && (tab === "mine" ? mine : others).some((j) => j.id === pick);
+  const theirs = deps.filter((d) => d.state === "others");
+  const blocked = deps.some((d) => d.state === "others" || d.state === "gone");
+  const ready =
+    !blocked &&
+    (making ? !!name.trim() : pick !== null && (tab === "mine" ? mine : others).some((j) => j.id === pick));
   const submit = async () => {
     setBusy(true);
     const r: Result<number | void> = split
@@ -214,9 +247,42 @@ export function JobForm({
       />
     </Stack>
   );
+  const along = !split && !!deps.length && (
+    <Stack gap={4} data-testid="job-deps">
+      <Text size="sm" fw={600}>
+        {t("deps", { n: deps.length })}
+      </Text>
+      {blocked && (
+        <Alert color="orange" p="xs" data-testid="job-deps-blocked">
+          <Group justify="space-between" gap="xs" wrap="nowrap">
+            <Text size="sm">{t("depsBlocked")}</Text>
+            {!!theirs.length && (
+              <Button
+                size="xs"
+                color="orange"
+                loading={busy}
+                data-testid="job-deps-take"
+                onClick={async () => {
+                  setBusy(true);
+                  if (await takeFiles(theirs, tf, true)) await loadDeps();
+                  setBusy(false);
+                }}
+              >
+                {t("takeOverAll", { n: theirs.length })}
+              </Button>
+            )}
+          </Group>
+        </Alert>
+      )}
+      <ScrollArea.Autosize mah={200}>
+        <DependencyTable deps={deps} />
+      </ScrollArea.Autosize>
+    </Stack>
+  );
   return (
     <Stack gap="md">
       {names}
+      {along}
       {split ? (
         fields
       ) : (

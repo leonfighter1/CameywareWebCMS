@@ -2,6 +2,17 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-16 (m): v9.3.0 (a page's dependencies, 依赖)
+
+- The owner couldn't add /test/: its new style was nobody's, and check-in refused it as someone else's with no name.
+  `dependencies` (workflow.ts) replaces the walk over a page's new parts with one list (state + the files needing it);
+  `takeTheirParts` takes the free ones with a page (takeAction, a copy, an upload); check-in takes free ones along.
+- A fourth 相关文件 tab in the dialog was half built, then the owner asked for 依赖 under 在我名下, ticked by default:
+  `DependencyTable` (components/dependencies.tsx) with ticks on 我的文件 and two-line rows in 加入工作流;
+  `dependencyViews` (present.ts) gives 来自 and 位置; `typeName` (catalog.ts); `takeFiles` (files.tsx) is the one 拿取
+  with its message. Walked on a copy (12 checks).
+- Mistakes 20–22: a refusal names the file and whose; a tick waits for its refresh; never /dev/stdin to node on Windows.
+
 ## 2026-11-16 (l): v9.2.0 (the file to copy picked in a lightbox)
 
 - The owner: 新建页面's copy list doesn't scale. `FilePicker` (search, ten a page, click / double click); the new-file

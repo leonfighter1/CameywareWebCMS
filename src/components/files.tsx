@@ -33,6 +33,16 @@ const FOLDERS: Record<FileView["kind"], string> = {
   code: "views/styles",
 };
 
+/** 拿取, or with [over] 接手, and its message: with the 依赖 that came along (the pages' new files nobody held). */
+export async function takeFiles(
+  items: { kind: FileView["kind"]; id: string }[],
+  t: ReturnType<typeof useTranslations<"files">>,
+  over = false,
+) {
+  const r = await takeAction(items, over);
+  return report(r, r.ok && r.value ? t("takenWithDeps", { n: r.value }) : t("taken"));
+}
+
 /** Is [file] [me]'s to change? */
 export const isMine = (file: FileView | undefined, me: string) =>
   file?.status === "checked_out" && file.owner === me;
@@ -314,11 +324,7 @@ export function FileBar({
         </Stack>
         <Group gap="xs">
           {file.status === "available" && (
-            <Button
-              size="xs"
-              loading={busy}
-              onClick={() => step(async () => report(await takeAction(item), t("taken")))}
-            >
+            <Button size="xs" loading={busy} onClick={() => step(() => takeFiles(item, t))}>
               {t("take")}
             </Button>
           )}
@@ -333,7 +339,7 @@ export function FileBar({
                   body: t("takeOverBody", { owner: file.owner ?? "" }),
                   label: t("takeOver"),
                   cancel: t("cancel"),
-                  run: () => step(async () => report(await takeAction(item, true), t("taken"))),
+                  run: () => step(() => takeFiles(item, t, true)),
                 })
               }
             >
