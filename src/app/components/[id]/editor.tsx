@@ -66,7 +66,7 @@ export function ComponentEditor({
     </Button>
   );
   return (
-    <Stack gap="lg" maw={1100}>
+    <Stack gap="lg">
       <Group justify="space-between">
         <div>
           <Title order={1} fz={22}>

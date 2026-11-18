@@ -109,7 +109,7 @@ export function GlobalEditor({
         </Group>
       </Group>
       <FileBar file={file} me={me} versions={versions} />
-      <Card withBorder maw={1100}>
+      <Card withBorder>
         <Editable open={mine}>
           <Stack>
             <FieldsEditor fields={fields} value={value} onChange={setValue} ctx={ctx} />

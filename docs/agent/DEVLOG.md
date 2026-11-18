@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-17 (b): v9.4.3 (the block and global editors use the full width)
+
+- The owner (screenshot of the hero banner's editor on a ~2000 px window): 「cms的content view现在排版问题。 小修一下」.
+  The block editor's Stack and the global editor's Card had `maw={1100}`, left-aligned, so half the window stood empty;
+  every other editor already spans the main area. Both caps removed (one line each). Looked at read-only on the running
+  CMS (`cms-editor-look.cjs`: 2000, 1280, 390 wide; card 1100 → 1960 at 2000, Lead fields 2–3 lines instead of 4–5).
+  The owner's CMS restarted on a fresh build (rules 8, 14). Not pushed: until 2026-12-01 pushes wait for the owner.
+
 ## 2026-11-17 (a): v9.4.2 (the CMS preview's rebuild with its own site, its state shown)
 
 - The owner pressed both rebuilds and took 当前部署's 重建 CMS 预览站 for broken: it had built cms-preview (09:01, a
