@@ -85,10 +85,13 @@ const PROPERTIES = new Set([
 const ELEMENTS = new Set(["script", "style", "link", "meta", "base", "object", "embed", "iframe", "frame"]);
 const ATTRIBUTES = new Set(["dangerouslySetInnerHTML", "srcDoc"]);
 
-/** What a type's own view needs of the above: 图文 shows the HTML the CMS sanitised, 自由 HTML its sandboxed frame. */
+/**
+ * What a type's own view needs of the above: 图文 shows the HTML the CMS sanitised, 自由 HTML its HTML in the page itself
+ * and its scripts run (the owner, 2026-11-17).
+ */
 export const RAW: Record<string, string[]> = {
   rich_text: ["dangerouslySetInnerHTML"],
-  freeform: ["iframe", "srcDoc", "window", "document"],
+  freeform: ["dangerouslySetInnerHTML", "document", "createElement"],
 };
 
 /** A name used as a value here, not a property's, a key's or an attribute's name. */
@@ -153,7 +156,11 @@ export function checkViewCode(source: string, type: string): CodeProblem[] {
       out.push(problem("dynamicImport", { line: line() }));
     else if (ts.isIdentifier(node) && GLOBALS.has(node.text) && !allowed.has(node.text) && isReference(node))
       out.push(problem("global", { name: node.text, line: line() }));
-    else if (ts.isPropertyAccessExpression(node) && PROPERTIES.has(node.name.text))
+    else if (
+      ts.isPropertyAccessExpression(node) &&
+      PROPERTIES.has(node.name.text) &&
+      !allowed.has(node.name.text)
+    )
       out.push(problem("property", { name: node.name.text, line: line() }));
     else if (
       ts.isElementAccessExpression(node) &&

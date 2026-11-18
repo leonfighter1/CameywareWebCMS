@@ -450,7 +450,7 @@
     },
     "freeform": {
       "label": "自由 HTML Freeform",
-      "description": "任意 HTML，脚本也可以。放在隔离框里运行：碰不到网站的登录信息和页面其他部分；高度随内容自动变化。",
+      "description": "任意 HTML，脚本也可以。直接放进页面，和网站共用样式，高度随内容变化；脚本在网站里运行，能读到正在登录的人的登录信息，只放信得过的代码。",
       "space": "medium",
       "fields": [
         {
@@ -478,7 +478,7 @@
         }
       ],
       "label_en": "Freeform HTML",
-      "description_en": "Any HTML, scripts too. Runs in a sandboxed frame: it can't reach the site's sign-in or the rest of the page; its height follows its content."
+      "description_en": "Any HTML, scripts too. Drawn in the page itself with the site's styles; its height follows its content. Its scripts run in the site and can read a signed-in visitor's session: put in only code you trust."
     },
     "image": {
       "label": "图片",

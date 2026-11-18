@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session, key points only.
 
+## 2026-11-17 (c): v9.4.4 (freeform in the page itself, the website's v2.6.0)
+
+- The owner, on cms-preview's /works/ draft: 「Freeform 你用了iframe去渲染，注意，不用iframe， 一定要是什么就是什么」; asked
+  about scripts (the site keeps its session in localStorage), they chose scripts too. The website draws it in the page
+  (v2.6.0); here `npm run sync` (the catalog's description, code.ts's RAW naming properties), rule 6 and C3 changed.
+  addCodeFiles takes main's freeform.tsx in as production's version at the next start (nobody holds it).
+- Tests: one full run had 1 failure (its name not kept); the two runs after it passed 74/74. If it comes back, find it.
+
 ## 2026-11-17 (b): v9.4.3 (the block and global editors use the full width)
 
 - The owner (screenshot of the hero banner's editor on a ~2000 px window): 「cms的content view现在排版问题。 小修一下」.

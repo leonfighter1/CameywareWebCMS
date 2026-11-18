@@ -56,9 +56,10 @@ Records: [docs/agent/MISTAKES.md](docs/agent/MISTAKES.md), [docs/agent/DEVLOG.md
    in one commit on GitHub's main, linted and built first. A template main (or GitHub) changed since the CMS took it in
    refuses to go on (`codeChanges`); a text the CMS had before is main behind it, never a change. A rollback sends
    content alone. Run vitest from `C:\` (rule 13).
-6. **freeform runs sandboxed** (C3): the website's view puts it in an iframe without same-origin. Never render a
-   freeform's HTML into the page itself. rich_text is sanitised here (catalog allowlist) and again by the website's
-   build.
+6. **freeform runs in the page itself** (C3 as the owner changed it on 2026-11-17: 「不用iframe， 一定要是什么就是什么」,
+   scripts too): the website's view draws its HTML into the page and runs its scripts there, so they can read a signed-in
+   visitor's session; only staff write it, and production takes it through 管理员's approval. rich_text is sanitised
+   here (catalog allowlist) and again by the website's build.
 7. **Every check of content is the catalog's** (`src/lib/catalog.ts` `check`): saves, uploads (JSON and XML) and page
    paths go through it; an upload is all or nothing.
 8. **Secrets only in `.env`** (git-ignored). The preview key is made at each start (`scripts/start.ts`).
